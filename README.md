@@ -6,13 +6,13 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository currently contains the application scaffold only.
+This repository contains the application scaffold and the PostgreSQL identity data model.
 
 The following are **not implemented**:
 
 - authentication
-- user profiles
-- database schema or connectivity
+- registration or login UI
+- profile UI
 - follow/unfollow
 - blocking
 - feed
@@ -32,11 +32,12 @@ TypeScript modular monolith using Next.js App Router.
 Current layout:
 
 - `app/` — routes, layouts, and HTTP handlers
-- `lib/` — shared application utilities (server-only configuration lives here)
+- `lib/` — shared application utilities (server-only configuration and Prisma client live here)
+- `prisma/` — schema and versioned migrations
 - `tests/` — unit and component tests
 - `e2e/` — Playwright end-to-end tests
 
-Future domain modules (identity, social graph, content, messaging, communities, notifications, moderation, AI) will be added as real implementations, not empty placeholders.
+Future domain modules (identity behavior, social graph, content, messaging, communities, notifications, moderation, AI) will be added as real implementations, not empty placeholders.
 
 ## Technology stack
 
@@ -44,23 +45,26 @@ Future domain modules (identity, social graph, content, messaging, communities, 
 - React
 - TypeScript (strict)
 - npm
+- Prisma 7
+- PostgreSQL (planned runtime; schema and migrations exist)
 - ESLint
 - Vitest
 - Playwright
 - Tailwind CSS (styling only; no product UI yet)
 
-PostgreSQL is planned. No database is connected in this phase.
-
 ## Prerequisites
 
 - Node.js 20 or later
 - npm 10 or later
+- PostgreSQL 16 or later, when database access is required
 
 ## Installation
 
 ```bash
 npm install
 ```
+
+`postinstall` generates the Prisma Client into `lib/generated/prisma`.
 
 ## Environment setup
 
@@ -79,6 +83,15 @@ cp .env.example .env.local
 - `USER_LLM_MODEL`
 
 Leave these empty until a later phase requires them. Do not invent credentials. Do not copy keys from the agent runtime or any other environment.
+
+When a PostgreSQL instance is available, set `DATABASE_URL` to that instance and apply migrations:
+
+```bash
+npm run db:validate
+npm run db:migrate
+```
+
+Do not point tests at a production database.
 
 ## Commands
 
@@ -118,13 +131,27 @@ Production build:
 npm run build
 ```
 
+Prisma:
+
+```bash
+npm run db:generate
+npm run db:validate
+npm run db:migrate
+```
+
+## Health endpoints
+
+- `GET /api/health` reports process-level application status only.
+- `GET /api/health/db` reports PostgreSQL readiness. If `DATABASE_URL` is missing, it returns HTTP 503 with `not_configured`. It does not claim the database is healthy unless a real connection succeeds.
+
 ## Security note
 
 - Never commit `.env`, `.env.local`, or files containing secrets.
 - Server secrets must stay server-side. Do not prefix them with `NEXT_PUBLIC_`.
+- Prisma Client and `DATABASE_URL` are server-only.
+- Session rows store `token_hash`, not plaintext session secrets.
 - LLM keys, if used later, must be supplied by the project operator as `USER_LLM_*` values. Do not reuse platform or agent keys.
-- The health endpoint reports process-level application status only. It does not claim database, AI, storage, or realtime health.
 
 ## Current MVP status
 
-Phase 02 scaffold. Product MVP work has not started.
+Phase 03 identity database foundation. Authentication and product MVP work have not started.

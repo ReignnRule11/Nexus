@@ -9,6 +9,7 @@ const SKIP_DIRS = new Set([
   ".next",
   "coverage",
   "e2e",
+  "generated",
   "node_modules",
   "playwright-report",
   "test-results",

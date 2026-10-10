@@ -27,7 +27,7 @@ const SECRET_NAMES = [
   "USER_LLM_API_KEY",
 ] as const;
 
-function resolveNodeEnvFrom(source: NodeJS.ProcessEnv): NodeEnv {
+function resolveNodeEnvFrom(source: EnvSource): NodeEnv {
   const value = source.NODE_ENV;
   if (value === "production" || value === "test" || value === "development") {
     return value;
@@ -35,10 +35,9 @@ function resolveNodeEnvFrom(source: NodeJS.ProcessEnv): NodeEnv {
   return "development";
 }
 
-function readFrom(
-  source: NodeJS.ProcessEnv,
-  name: string,
-): string | undefined {
+export type EnvSource = Record<string, string | undefined>;
+
+function readFrom(source: EnvSource, name: string): string | undefined {
   const value = source[name];
   if (value === undefined || value.trim() === "") {
     return undefined;
@@ -46,7 +45,7 @@ function readFrom(
   return value;
 }
 
-export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+export function loadEnv(source: EnvSource = process.env): Env {
   return {
     nodeEnv: resolveNodeEnvFrom(source),
     databaseUrl: readFrom(source, "DATABASE_URL"),
@@ -88,6 +87,16 @@ export function assertRequiredWhenUsed(
       `Missing required configuration: ${missing.join(", ")}. Set values in the environment. Do not use fake credentials.`,
     );
   }
+}
+
+export function requireDatabaseUrl(source: EnvSource = process.env): string {
+  const databaseUrl = loadEnv(source).databaseUrl;
+  if (!databaseUrl) {
+    throw new Error(
+      "Missing required configuration: DATABASE_URL. PostgreSQL access is unavailable until a connection string is provided. Do not use fake credentials.",
+    );
+  }
+  return databaseUrl;
 }
 
 export const serverSecretNames: readonly string[] = SECRET_NAMES;
