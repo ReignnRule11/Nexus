@@ -56,7 +56,7 @@ Future domain modules (identity behavior, social graph, content, messaging, comm
 
 - Node.js 20 or later
 - npm 10 or later
-- PostgreSQL 16 or later, when database access is required
+- PostgreSQL 15 or later, when database access is required
 
 ## Installation
 
@@ -92,6 +92,8 @@ npm run db:migrate
 ```
 
 Do not point tests at a production database.
+
+PostgreSQL identity integration tests run only when `DATABASE_URL` points at a dedicated `nexus_test` database. Without that, they are skipped.
 
 ## Commands
 

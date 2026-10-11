@@ -60,18 +60,25 @@ describe("database configuration and health", () => {
 
   it("keeps application health independent of database readiness", async () => {
     const appResponse = await getApplicationHealthRoute();
-    const dbResponse = await getDatabaseHealthRoute();
     const appBody = (await appResponse.json()) as ReturnType<
       typeof getApplicationHealth
     >;
+
+    expect(appResponse.status).toBe(200);
+    expect(appBody.status).toBe("ok");
+    expect(appBody).not.toHaveProperty("database");
+
+    const configured = Boolean(process.env.DATABASE_URL?.trim());
+    if (configured) {
+      return;
+    }
+
+    const dbResponse = await getDatabaseHealthRoute();
     const dbBody = (await dbResponse.json()) as {
       status: string;
       service: string;
     };
 
-    expect(appResponse.status).toBe(200);
-    expect(appBody.status).toBe("ok");
-    expect(appBody).not.toHaveProperty("database");
     expect(dbResponse.status).toBe(503);
     expect(dbBody.status).toBe("not_configured");
     expect(dbBody.service).toBe("postgres");
