@@ -38,7 +38,15 @@ describe("Prisma identity schema", () => {
 
     expect(schema).toContain("tokenHash");
     expect(schema).not.toMatch(/token\s+String/);
-    expect(schema).not.toContain("password");
+    expect(schema).toContain("passwordHash");
+    expect(schema).not.toMatch(/password\s+String/);
+  });
+
+  it("stores unique normalized emails", () => {
+    const schema = readFileSync(schemaPath, "utf8");
+
+    expect(schema).toContain("emailNormalized");
+    expect(schema).toMatch(/emailNormalized\s+String\s+@unique/);
   });
 });
 
@@ -71,5 +79,27 @@ describe("Prisma identity migration", () => {
     );
     expect(sql).toContain('CREATE INDEX "users_status_idx"');
     expect(sql).toContain('CREATE INDEX "sessions_expires_at_idx"');
+  });
+});
+
+describe("Prisma credentials migration", () => {
+  const credentialsSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261011140000_add_user_credentials",
+    "migration.sql",
+  );
+
+  it("adds unique email and password hash columns", () => {
+    expect(existsSync(credentialsSqlPath)).toBe(true);
+    const sql = readFileSync(credentialsSqlPath, "utf8");
+
+    expect(sql).toContain('ADD COLUMN "email" VARCHAR(254) NOT NULL');
+    expect(sql).toContain('ADD COLUMN "email_normalized" VARCHAR(254) NOT NULL');
+    expect(sql).toContain('ADD COLUMN "password_hash" VARCHAR(255) NOT NULL');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "users_email_normalized_key" ON "users"("email_normalized")',
+    );
   });
 });

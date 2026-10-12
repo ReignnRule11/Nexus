@@ -5,6 +5,7 @@ import { getPrismaClient } from "@/lib/db";
 import { getDatabaseHealth } from "@/lib/db-health";
 import { loadEnv } from "@/lib/env";
 import { normalizeUsername } from "@/lib/identity";
+import { requiredUserData } from "@/tests/user-fixtures";
 
 const env = loadEnv(process.env);
 const databaseUrl = env.databaseUrl;
@@ -64,7 +65,7 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("creates a user with an ACTIVE status", async () => {
-    const user = await prisma.user.create({ data: {} });
+    const user = await prisma.user.create({ data: requiredUserData("active") });
     createdUserIds.push(user.id);
 
     expect(user.id).toMatch(
@@ -77,7 +78,9 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("creates one profile for a user and looks it up by normalized username", async () => {
-    const user = await prisma.user.create({ data: { status: "SUSPENDED" } });
+    const user = await prisma.user.create({
+      data: { ...requiredUserData("susp"), status: "SUSPENDED" },
+    });
     createdUserIds.push(user.id);
 
     const username = `Ada_${randomUUID().slice(0, 8)}`;
@@ -102,7 +105,7 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("enforces one profile per user", async () => {
-    const user = await prisma.user.create({ data: {} });
+    const user = await prisma.user.create({ data: requiredUserData("one") });
     createdUserIds.push(user.id);
 
     await prisma.profile.create({
@@ -131,9 +134,29 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
     });
   });
 
+  it("enforces unique emailNormalized values", async () => {
+    const first = await prisma.user.create({ data: requiredUserData("e1") });
+    createdUserIds.push(first.id);
+
+    await expect(
+      prisma.user.create({
+        data: {
+          ...requiredUserData("e2"),
+          email: first.email,
+          emailNormalized: first.emailNormalized,
+        },
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      return (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      );
+    });
+  });
+
   it("enforces unique usernameNormalized values", async () => {
-    const first = await prisma.user.create({ data: {} });
-    const second = await prisma.user.create({ data: {} });
+    const first = await prisma.user.create({ data: requiredUserData("u1") });
+    const second = await prisma.user.create({ data: requiredUserData("u2") });
     createdUserIds.push(first.id, second.id);
 
     const username = `Unique_${randomUUID().slice(0, 8)}`;
@@ -164,7 +187,7 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("creates a session for an existing user and stores expiration", async () => {
-    const user = await prisma.user.create({ data: {} });
+    const user = await prisma.user.create({ data: requiredUserData("sess") });
     createdUserIds.push(user.id);
 
     const expiresAt = new Date("2030-01-01T00:00:00.000Z");
@@ -182,7 +205,7 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("enforces unique session token hashes", async () => {
-    const user = await prisma.user.create({ data: {} });
+    const user = await prisma.user.create({ data: requiredUserData("dup") });
     createdUserIds.push(user.id);
     const hash = tokenHash(`dup-${randomUUID()}`);
 
@@ -228,7 +251,7 @@ describe.skipIf(!canRunIntegration)("identity PostgreSQL integration", () => {
   });
 
   it("cascades profile and session deletion when the user is deleted", async () => {
-    const user = await prisma.user.create({ data: {} });
+    const user = await prisma.user.create({ data: requiredUserData("del") });
     const username = `del_${randomUUID().slice(0, 8)}`;
     const hash = tokenHash(`del-${randomUUID()}`);
 

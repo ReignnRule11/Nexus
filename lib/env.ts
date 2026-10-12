@@ -99,4 +99,14 @@ export function requireDatabaseUrl(source: EnvSource = process.env): string {
   return databaseUrl;
 }
 
+export function requireAuthSecret(source: EnvSource = process.env): string {
+  const authSecret = loadEnv(source).authSecret;
+  if (!authSecret) {
+    throw new Error(
+      "Missing required configuration: AUTH_SECRET. Authentication is unavailable until a session secret is provided. Do not use fake credentials.",
+    );
+  }
+  return authSecret;
+}
+
 export const serverSecretNames: readonly string[] = SECRET_NAMES;

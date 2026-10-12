@@ -14,11 +14,14 @@ enum UserStatus {
 }
 
 model User {
-  id        String     @id @default(uuid()) @db.Uuid
-  status    UserStatus @default(ACTIVE)
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  deletedAt DateTime?  @map("deleted_at")
+  id              String     @id @default(uuid()) @db.Uuid
+  email           String     @db.VarChar(254)
+  emailNormalized String     @unique @map("email_normalized") @db.VarChar(254)
+  passwordHash    String     @map("password_hash") @db.VarChar(255)
+  status          UserStatus @default(ACTIVE)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
 
   profile  Profile?
   sessions Session[]

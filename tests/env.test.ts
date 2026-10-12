@@ -3,6 +3,7 @@ import {
   assertRequiredWhenUsed,
   getConfigStatus,
   loadEnv,
+  requireAuthSecret,
   serverSecretNames,
 } from "@/lib/env";
 
@@ -62,5 +63,11 @@ describe("environment configuration", () => {
       "AUTH_SECRET",
       "USER_LLM_API_KEY",
     ]);
+  });
+
+  it("fails closed when AUTH_SECRET is absent", () => {
+    expect(() => requireAuthSecret({})).toThrow(
+      /Missing required configuration: AUTH_SECRET/,
+    );
   });
 });

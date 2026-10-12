@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
     "*.monkeycode-ai.live",
     "**.monkeycode-ai.live",
   ],
-  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"],
+  serverExternalPackages: [
+    "@prisma/client",
+    "@prisma/adapter-pg",
+    "pg",
+    "argon2",
+  ],
   turbopack: {
     rules: {
       "*.css": {

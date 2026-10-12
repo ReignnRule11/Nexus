@@ -61,6 +61,7 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         "profiles_user_id_key",
         "profiles_username_normalized_key",
         "sessions_token_hash_key",
+        "users_email_normalized_key",
         "users_status_idx",
         "sessions_expires_at_idx",
       ]),

@@ -53,6 +53,23 @@ describe("server-only database module", () => {
     expect(envSource).toContain("DATABASE_URL");
   });
 
+  it("marks authentication modules as server-only", () => {
+    const files = [
+      "auth.ts",
+      "auth-http.ts",
+      "cookie.ts",
+      "password.ts",
+      "session.ts",
+      "csrf.ts",
+      "authorization.ts",
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(path.join(ROOT, "lib", file), "utf8");
+      expect(source, file).toContain('import "server-only"');
+    }
+  });
+
   it("is not imported by client components or public pages", () => {
     const files = walk(ROOT);
     const violations: string[] = [];
