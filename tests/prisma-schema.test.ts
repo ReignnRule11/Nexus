@@ -22,6 +22,8 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model User");
     expect(schema).toContain("model Profile");
     expect(schema).toContain("model Session");
+    expect(schema).toContain("model Follow");
+    expect(schema).toContain("model Block");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -101,5 +103,36 @@ describe("Prisma credentials migration", () => {
     expect(sql).toContain(
       'CREATE UNIQUE INDEX "users_email_normalized_key" ON "users"("email_normalized")',
     );
+  });
+});
+
+describe("Prisma social graph migration", () => {
+  const graphSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261012120000_add_social_graph",
+    "migration.sql",
+  );
+
+  it("creates follow and block tables with uniqueness, FKs, and self-relationship checks", () => {
+    expect(existsSync(graphSqlPath)).toBe(true);
+    const sql = readFileSync(graphSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "follows"');
+    expect(sql).toContain('CREATE TABLE "blocks"');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "follows_follower_id_following_id_key"',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "blocks_blocker_id_blocked_id_key"',
+    );
+    expect(sql).toContain('CREATE INDEX "follows_follower_id_created_at_idx"');
+    expect(sql).toContain('CREATE INDEX "follows_following_id_created_at_idx"');
+    expect(sql).toContain('CREATE INDEX "blocks_blocker_id_created_at_idx"');
+    expect(sql).toContain('CREATE INDEX "profiles_display_name_idx"');
+    expect(sql).toContain("CONSTRAINT \"follows_no_self\"");
+    expect(sql).toContain("CONSTRAINT \"blocks_no_self\"");
+    expect(sql).toContain("ON DELETE CASCADE");
   });
 });

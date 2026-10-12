@@ -62,6 +62,9 @@ describe("server-only database module", () => {
       "session.ts",
       "csrf.ts",
       "authorization.ts",
+      "graph.ts",
+      "graph-http.ts",
+      "discovery.ts",
     ];
 
     for (const file of files) {
