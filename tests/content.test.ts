@@ -43,6 +43,7 @@ describe("post serialization", () => {
       commentCount: 0,
       reactionCount: 1,
       viewerHasLiked: true,
+      media: [],
     });
     expect(JSON.stringify(serialized)).not.toContain("password");
     expect(JSON.stringify(serialized)).not.toContain("email");

@@ -26,19 +26,19 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
       FROM pg_class
       WHERE relkind = 'r'
         AND relnamespace = 'public'::regnamespace
-        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions')
+        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media')
       ORDER BY relname
     `;
     const constraints = await prisma.$queryRaw<ConstraintRow[]>`
       SELECT conname, contype::text AS contype
       FROM pg_constraint
-      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass)
+      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass, 'media'::regclass, 'post_media'::regclass)
       ORDER BY conname
     `;
     const indexes = await prisma.$queryRaw<IndexRow[]>`
       SELECT indexname
       FROM pg_indexes
-      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions')
+      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media')
       ORDER BY indexname
     `;
 
@@ -46,6 +46,8 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
       "blocks",
       "comments",
       "follows",
+      "media",
+      "post_media",
       "posts",
       "profiles",
       "reactions",
@@ -75,6 +77,11 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         { conname: "comments_author_id_fkey", contype: "f" },
         { conname: "reactions_post_id_fkey", contype: "f" },
         { conname: "reactions_user_id_fkey", contype: "f" },
+        { conname: "media_pkey", contype: "p" },
+        { conname: "post_media_pkey", contype: "p" },
+        { conname: "media_owner_id_fkey", contype: "f" },
+        { conname: "post_media_post_id_fkey", contype: "f" },
+        { conname: "post_media_media_id_fkey", contype: "f" },
       ]),
     );
     expect(indexes.map((row) => row.indexname)).toEqual(
@@ -96,6 +103,10 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         "posts_created_at_id_idx",
         "comments_post_id_created_at_idx",
         "reactions_post_id_user_id_type_key",
+        "media_object_key_key",
+        "media_owner_id_created_at_idx",
+        "post_media_media_id_key",
+        "post_media_post_id_media_id_key",
       ]),
     );
   });

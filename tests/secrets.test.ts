@@ -20,9 +20,12 @@ const CLIENT_SECRET_PATTERNS = [
   /NEXT_PUBLIC_DATABASE_URL/,
   /NEXT_PUBLIC_AUTH_SECRET/,
   /NEXT_PUBLIC_USER_LLM_API_KEY/,
+  /NEXT_PUBLIC_S3_ACCESS_KEY_ID/,
+  /NEXT_PUBLIC_S3_SECRET_ACCESS_KEY/,
   /process\.env\.DATABASE_URL/,
   /process\.env\.AUTH_SECRET/,
   /process\.env\.USER_LLM_API_KEY/,
+  /process\.env\.S3_SECRET_ACCESS_KEY/,
 ];
 
 function walk(dir: string): string[] {
@@ -70,7 +73,9 @@ describe("secret exposure", () => {
       }
 
       if (
-        /NEXT_PUBLIC_(DATABASE_URL|AUTH_SECRET|USER_LLM_API_KEY)/.test(source)
+        /NEXT_PUBLIC_(DATABASE_URL|AUTH_SECRET|USER_LLM_API_KEY|S3_ACCESS_KEY_ID|S3_SECRET_ACCESS_KEY)/.test(
+          source,
+        )
       ) {
         violations.push(`${relative} prefixes a secret with NEXT_PUBLIC_`);
       }

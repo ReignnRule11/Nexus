@@ -6,7 +6,7 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold, identity, authentication, social graph, and chronological content APIs.
+This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, and private media storage.
 
 The following are **not implemented**:
 
@@ -16,7 +16,6 @@ The following are **not implemented**:
 - notifications
 - moderation
 - search engine
-- media/object storage
 - AI features
 - ranking or recommendation
 
@@ -75,6 +74,12 @@ cp .env.example .env.local
 
 - `DATABASE_URL`
 - `AUTH_SECRET`
+- `STORAGE_DRIVER`
+- `S3_BUCKET`
+- `S3_REGION`
+- `S3_ENDPOINT`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
 - `USER_LLM_API_KEY`
 - `USER_LLM_BASE_URL`
 - `USER_LLM_MODEL`
@@ -153,4 +158,4 @@ npm run db:migrate
 
 ## Current MVP status
 
-Phase 06 posts, chronological feed, comments, and reactions. Messaging, communities, notifications, and later product phases have not started.
+Phase 07 private media storage and post attachments. Messaging, communities, notifications, and later product phases have not started.

@@ -66,6 +66,9 @@ describe("server-only database module", () => {
       "graph-http.ts",
       "discovery.ts",
       "posts.ts",
+      "media.ts",
+      "storage.ts",
+      "storage-s3.ts",
     ];
 
     for (const file of files) {

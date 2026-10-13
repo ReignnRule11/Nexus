@@ -27,6 +27,8 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model Post");
     expect(schema).toContain("model Comment");
     expect(schema).toContain("model Reaction");
+    expect(schema).toContain("model Media");
+    expect(schema).toContain("model PostMedia");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -163,6 +165,31 @@ describe("Prisma posts migration", () => {
     expect(sql).toContain(
       'CREATE UNIQUE INDEX "reactions_post_id_user_id_type_key"',
     );
+    expect(sql).toContain("ON DELETE CASCADE");
+  });
+});
+
+describe("Prisma media migration", () => {
+  const mediaSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261013180000_add_media_storage",
+    "migration.sql",
+  );
+
+  it("creates media and post_media with unique object keys and FKs", () => {
+    expect(existsSync(mediaSqlPath)).toBe(true);
+    const sql = readFileSync(mediaSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "media"');
+    expect(sql).toContain('CREATE TABLE "post_media"');
+    expect(sql).toContain(
+      'CREATE TYPE "MediaStatus" AS ENUM (\'PENDING\', \'AVAILABLE\', \'FAILED\', \'DELETED\')',
+    );
+    expect(sql).toContain('CREATE UNIQUE INDEX "media_object_key_key"');
+    expect(sql).toContain('CREATE INDEX "media_owner_id_created_at_idx"');
+    expect(sql).toContain('CREATE UNIQUE INDEX "post_media_media_id_key"');
     expect(sql).toContain("ON DELETE CASCADE");
   });
 });

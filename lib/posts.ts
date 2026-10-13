@@ -14,6 +14,14 @@ import { loadEnv } from "@/lib/env";
 import { toPublicGraphProfile, type PublicGraphProfile } from "@/lib/graph";
 import { HttpError } from "@/lib/http-error";
 import {
+  assertAttachableMedia,
+  listPublicMediaForPost,
+  parseMediaIds,
+  replacePostMedia,
+  serializePublicMedia,
+  type PublicMedia,
+} from "@/lib/media";
+import {
   decodeCursor,
   encodeCursor,
   type PageParams,
@@ -76,6 +84,7 @@ export type PublicPost = {
   commentCount: number;
   reactionCount: number;
   viewerHasLiked: boolean;
+  media: PublicMedia[];
 };
 
 export type PublicComment = {
@@ -182,7 +191,11 @@ async function followingIds(userId: string): Promise<string[]> {
   return rows.map((row) => row.followingId);
 }
 
-function toPublicPost(post: PostRecord, viewerId?: string): PublicPost {
+function toPublicPost(
+  post: PostRecord,
+  viewerId?: string,
+  media: PublicMedia[] = [],
+): PublicPost {
   if (!post.author.profile) {
     throw new HttpError(500, "internal", "Something went wrong.");
   }
@@ -195,6 +208,7 @@ function toPublicPost(post: PostRecord, viewerId?: string): PublicPost {
     commentCount: post._count.comments,
     reactionCount: post._count.reactions,
     viewerHasLiked: Boolean(viewerId) && post.reactions.length > 0,
+    media,
   };
 }
 
@@ -208,6 +222,7 @@ export function serializePublicPost(post: PublicPost) {
     commentCount: post.commentCount,
     reactionCount: post.reactionCount,
     viewerHasLiked: post.viewerHasLiked,
+    media: post.media.map(serializePublicMedia),
   };
 }
 
@@ -287,9 +302,17 @@ async function loadVisiblePost(postId: string, viewerId?: string): Promise<PostR
   return normalizePostRecord(post);
 }
 
+async function withMedia(
+  post: PostRecord,
+  viewerId?: string,
+): Promise<PublicPost> {
+  const media = await listPublicMediaForPost(post.id);
+  return toPublicPost(post, viewerId, media);
+}
+
 export async function createPost(
   sessionToken: string | undefined,
-  input: { body: unknown },
+  input: { body: unknown; mediaIds?: unknown },
 ): Promise<PublicPost> {
   requireDatabaseConfigured();
   const actor = await requireActiveUser(sessionToken);
@@ -299,6 +322,8 @@ export async function createPost(
       body: `Post body must be 1-${contentLimits.postBodyMaxLength} characters.`,
     });
   }
+  const mediaIds = parseMediaIds(input.mediaIds);
+  await assertAttachableMedia(actor.id, mediaIds);
 
   const prisma = getPrismaClient();
   const post = await prisma.post.create({
@@ -308,7 +333,10 @@ export async function createPost(
     },
     include: postInclude(actor.id),
   });
-  return toPublicPost(normalizePostRecord(post), actor.id);
+  if (mediaIds.length > 0) {
+    await replacePostMedia(post.id, mediaIds);
+  }
+  return withMedia(normalizePostRecord(post), actor.id);
 }
 
 export async function getPost(
@@ -317,13 +345,13 @@ export async function getPost(
 ): Promise<PublicPost> {
   const viewer = await getCurrentUser(sessionToken);
   const post = await loadVisiblePost(postId, viewer?.id);
-  return toPublicPost(post, viewer?.id);
+  return withMedia(post, viewer?.id);
 }
 
 export async function updatePost(
   sessionToken: string | undefined,
   postId: string,
-  input: { body: unknown },
+  input: { body: unknown; mediaIds?: unknown },
 ): Promise<PublicPost> {
   requireDatabaseConfigured();
   assertId(postId, "post id");
@@ -344,7 +372,36 @@ export async function updatePost(
     data: { body },
     include: postInclude(actor.id),
   });
-  return toPublicPost(normalizePostRecord(post), actor.id);
+  if (input.mediaIds !== undefined) {
+    const mediaIds = parseMediaIds(input.mediaIds);
+    const current = await prisma.postMedia.findMany({
+      where: { postId },
+      select: { mediaId: true },
+    });
+    const currentIds = new Set(current.map((row) => row.mediaId));
+    const incoming = mediaIds.filter((id) => !currentIds.has(id));
+    await assertAttachableMedia(actor.id, incoming);
+    const retained = mediaIds.filter((id) => currentIds.has(id));
+    if (retained.length > 0) {
+      const retainedRows = await prisma.media.findMany({
+        where: { id: { in: retained } },
+      });
+      if (retainedRows.length !== retained.length) {
+        throw new HttpError(400, "invalid_input", "Invalid input.", {
+          mediaIds: "One or more media items were not found.",
+        });
+      }
+      for (const row of retainedRows) {
+        if (row.ownerId !== actor.id || row.status !== "AVAILABLE" || row.deletedAt) {
+          throw new HttpError(400, "invalid_input", "Invalid input.", {
+            mediaIds: "Media must be available before it can be attached.",
+          });
+        }
+      }
+    }
+    await replacePostMedia(postId, mediaIds);
+  }
+  return withMedia(normalizePostRecord(post), actor.id);
 }
 
 export async function deletePost(
@@ -391,8 +448,10 @@ export async function getFeed(
     include: postInclude(actor.id),
   });
 
-  const page = rows.slice(0, params.limit).map((row) =>
-    toPublicPost(normalizePostRecord(row), actor.id),
+  const page = await Promise.all(
+    rows.slice(0, params.limit).map((row) =>
+      withMedia(normalizePostRecord(row), actor.id),
+    ),
   );
   const lastRow = rows[params.limit - 1];
   return {

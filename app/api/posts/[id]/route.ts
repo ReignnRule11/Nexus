@@ -35,6 +35,7 @@ export async function PATCH(
     const body = await readJsonObject(request);
     const post = await updatePost(readSessionToken(request), id, {
       body: body.body,
+      mediaIds: body.mediaIds,
     });
     return jsonResponse({ post: serializePublicPost(post) });
   } catch (error) {

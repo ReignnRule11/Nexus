@@ -32,6 +32,7 @@ model User {
   posts          Post[]
   comments       Comment[]
   reactions      Reaction[]
+  media          Media[]
 
   @@index([status])
   @@map("users")
@@ -115,6 +116,7 @@ model Post {
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments  Comment[]
   reactions Reaction[]
+  postMedia PostMedia[]
 
   @@index([authorId, createdAt])
   @@index([createdAt, id])
@@ -154,4 +156,48 @@ model Reaction {
   @@index([postId, type])
   @@index([userId])
   @@map("reactions")
+}
+
+enum MediaStatus {
+  PENDING
+  AVAILABLE
+  FAILED
+  DELETED
+}
+
+model Media {
+  id                String      @id @default(uuid()) @db.Uuid
+  ownerId           String      @map("owner_id") @db.Uuid
+  objectKey         String      @unique @map("object_key") @db.VarChar(255)
+  originalFilename  String      @map("original_filename") @db.VarChar(255)
+  mimeType          String      @map("mime_type") @db.VarChar(100)
+  byteSize          Int         @map("byte_size")
+  checksum          String?     @db.VarChar(64)
+  status            MediaStatus @default(PENDING)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  deletedAt         DateTime?   @map("deleted_at")
+
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  postMedia PostMedia?
+
+  @@index([ownerId, createdAt])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("media")
+}
+
+model PostMedia {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  mediaId   String   @unique @map("media_id") @db.Uuid
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mediaId])
+  @@index([postId, position])
+  @@map("post_media")
 }

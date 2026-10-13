@@ -11,7 +11,10 @@ export async function POST(request: Request) {
   try {
     protectMutation(request);
     const body = await readJsonObject(request);
-    const post = await createPost(readSessionToken(request), { body: body.body });
+    const post = await createPost(readSessionToken(request), {
+      body: body.body,
+      mediaIds: body.mediaIds,
+    });
     return jsonResponse({ post: serializePublicPost(post) }, 201);
   } catch (error) {
     return errorResponse(error);

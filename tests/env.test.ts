@@ -3,7 +3,9 @@ import {
   assertRequiredWhenUsed,
   getConfigStatus,
   loadEnv,
+  loadStorageConfig,
   requireAuthSecret,
+  requireStorageConfig,
   serverSecretNames,
 } from "@/lib/env";
 
@@ -17,6 +19,9 @@ describe("environment configuration", () => {
     expect(env.userLlmApiKey).toBeUndefined();
     expect(env.userLlmBaseUrl).toBeUndefined();
     expect(env.userLlmModel).toBeUndefined();
+    expect(env.storageDriver).toBeUndefined();
+    expect(env.s3AccessKeyId).toBeUndefined();
+    expect(env.s3SecretAccessKey).toBeUndefined();
   });
 
   it("does not substitute fake credentials for empty values", () => {
@@ -41,10 +46,14 @@ describe("environment configuration", () => {
     const status = getConfigStatus(env);
     const serialized = JSON.stringify(status);
 
-    expect(status.requiredWhenUsed).toEqual([
-      { name: "DATABASE_URL", configured: true },
-      { name: "AUTH_SECRET", configured: true },
-    ]);
+    expect(status.requiredWhenUsed).toEqual(
+      expect.arrayContaining([
+        { name: "DATABASE_URL", configured: true },
+        { name: "AUTH_SECRET", configured: true },
+        { name: "STORAGE_DRIVER", configured: false },
+        { name: "S3_SECRET_ACCESS_KEY", configured: false },
+      ]),
+    );
     expect(serialized).not.toContain("postgres://");
     expect(serialized).not.toContain("not-a-real-secret");
   });
@@ -61,6 +70,8 @@ describe("environment configuration", () => {
     expect(serverSecretNames).toEqual([
       "DATABASE_URL",
       "AUTH_SECRET",
+      "S3_ACCESS_KEY_ID",
+      "S3_SECRET_ACCESS_KEY",
       "USER_LLM_API_KEY",
     ]);
   });
@@ -69,5 +80,16 @@ describe("environment configuration", () => {
     expect(() => requireAuthSecret({})).toThrow(
       /Missing required configuration: AUTH_SECRET/,
     );
+  });
+
+  it("fails closed when private object storage is not configured", () => {
+    expect(() => requireStorageConfig({})).toThrow(
+      /Missing required configuration: STORAGE_DRIVER/,
+    );
+    expect(() =>
+      loadStorageConfig({
+        STORAGE_DRIVER: "filesystem",
+      }),
+    ).toThrow(/STORAGE_DRIVER/);
   });
 });
