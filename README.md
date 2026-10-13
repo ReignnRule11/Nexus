@@ -6,22 +6,19 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold and the PostgreSQL identity data model.
+This repository contains the application scaffold, identity, authentication, social graph, and chronological content APIs.
 
 The following are **not implemented**:
 
-- authentication
-- registration or login UI
-- profile UI
-- follow/unfollow
-- blocking
-- feed
-- posts, comments, and reactions
+- product UI beyond the landing page
 - messaging
 - communities and channels
 - notifications
 - moderation
+- search engine
+- media/object storage
 - AI features
+- ranking or recommendation
 
 Do not treat this repository as a working product.
 
@@ -46,7 +43,7 @@ Future domain modules (identity behavior, social graph, content, messaging, comm
 - TypeScript (strict)
 - npm
 - Prisma 7
-- PostgreSQL (planned runtime; schema and migrations exist)
+- PostgreSQL 15
 - ESLint
 - Vitest
 - Playwright
@@ -93,7 +90,7 @@ npm run db:migrate
 
 Do not point tests at a production database.
 
-PostgreSQL identity integration tests run only when `DATABASE_URL` points at a dedicated `nexus_test` database. Without that, they are skipped.
+PostgreSQL integration tests run only when `DATABASE_URL` points at a dedicated `nexus_test` database. Without that, they are skipped.
 
 ## Commands
 
@@ -156,4 +153,4 @@ npm run db:migrate
 
 ## Current MVP status
 
-Phase 03 identity database foundation. Authentication and product MVP work have not started.
+Phase 06 posts, chronological feed, comments, and reactions. Messaging, communities, notifications, and later product phases have not started.

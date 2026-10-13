@@ -24,6 +24,9 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model Session");
     expect(schema).toContain("model Follow");
     expect(schema).toContain("model Block");
+    expect(schema).toContain("model Post");
+    expect(schema).toContain("model Comment");
+    expect(schema).toContain("model Reaction");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -133,6 +136,33 @@ describe("Prisma social graph migration", () => {
     expect(sql).toContain('CREATE INDEX "profiles_display_name_idx"');
     expect(sql).toContain("CONSTRAINT \"follows_no_self\"");
     expect(sql).toContain("CONSTRAINT \"blocks_no_self\"");
+    expect(sql).toContain("ON DELETE CASCADE");
+  });
+});
+
+describe("Prisma posts migration", () => {
+  const postsSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261013120000_add_posts_comments_reactions",
+    "migration.sql",
+  );
+
+  it("creates posts, comments, and reactions with uniqueness and feed indexes", () => {
+    expect(existsSync(postsSqlPath)).toBe(true);
+    const sql = readFileSync(postsSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "posts"');
+    expect(sql).toContain('CREATE TABLE "comments"');
+    expect(sql).toContain('CREATE TABLE "reactions"');
+    expect(sql).toContain('CREATE TYPE "ReactionType" AS ENUM (\'LIKE\')');
+    expect(sql).toContain('CREATE INDEX "posts_author_id_created_at_idx"');
+    expect(sql).toContain('CREATE INDEX "posts_created_at_id_idx"');
+    expect(sql).toContain('CREATE INDEX "comments_post_id_created_at_idx"');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "reactions_post_id_user_id_type_key"',
+    );
     expect(sql).toContain("ON DELETE CASCADE");
   });
 });

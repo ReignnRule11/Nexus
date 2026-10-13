@@ -29,6 +29,9 @@ model User {
   followers      Follow[]  @relation("UserFollowers")
   blocksCreated  Block[]   @relation("UserBlocks")
   blocksReceived Block[]   @relation("UserBlocked")
+  posts          Post[]
+  comments       Comment[]
+  reactions      Reaction[]
 
   @@index([status])
   @@map("users")
@@ -95,4 +98,60 @@ model Block {
   @@index([blockerId, createdAt])
   @@index([blockedId, createdAt])
   @@map("blocks")
+}
+
+enum ReactionType {
+  LIKE
+}
+
+model Post {
+  id        String    @id @default(uuid()) @db.Uuid
+  authorId  String    @map("author_id") @db.Uuid
+  body      String    @db.VarChar(5000)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([authorId, createdAt])
+  @@index([createdAt, id])
+  @@index([deletedAt])
+  @@map("posts")
+}
+
+model Comment {
+  id        String    @id @default(uuid()) @db.Uuid
+  postId    String    @map("post_id") @db.Uuid
+  authorId  String    @map("author_id") @db.Uuid
+  body      String    @db.VarChar(2000)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([deletedAt])
+  @@map("comments")
+}
+
+model Reaction {
+  id        String       @id @default(uuid()) @db.Uuid
+  postId    String       @map("post_id") @db.Uuid
+  userId    String       @map("user_id") @db.Uuid
+  type      ReactionType @default(LIKE)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId, type])
+  @@index([postId, type])
+  @@index([userId])
+  @@map("reactions")
 }
