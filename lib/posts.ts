@@ -14,6 +14,11 @@ import { loadEnv } from "@/lib/env";
 import { toPublicGraphProfile, type PublicGraphProfile } from "@/lib/graph";
 import { HttpError } from "@/lib/http-error";
 import {
+  canWriteChannel,
+  type ChannelType,
+  type CommunityRole,
+} from "@/lib/community-policy";
+import {
   assertAttachableMedia,
   listPublicMediaForPost,
   parseMediaIds,
@@ -63,20 +68,34 @@ type AuthorRecord = {
   } | null;
 };
 
+type ChannelContext = {
+  id: string;
+  deletedAt: Date | null;
+  community: {
+    id: string;
+    ownerId: string;
+    visibility: "PUBLIC" | "PRIVATE";
+    deletedAt: Date | null;
+  };
+};
+
 type PostRecord = {
   id: string;
   authorId: string;
+  channelId: string | null;
   body: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
   author: AuthorRecord;
+  channel?: ChannelContext | null;
   _count: { comments: number; reactions: number };
   reactions: Array<{ id: string }>;
 };
 
 export type PublicPost = {
   id: string;
+  channelId: string | null;
   author: PublicGraphProfile;
   body: string;
   createdAt: Date;
@@ -201,6 +220,7 @@ function toPublicPost(
   }
   return {
     id: post.id,
+    channelId: post.channelId,
     author: toPublicGraphProfile(post.author.profile),
     body: post.body,
     createdAt: post.createdAt,
@@ -215,6 +235,7 @@ function toPublicPost(
 export function serializePublicPost(post: PublicPost) {
   return {
     id: post.id,
+    channelId: post.channelId,
     author: post.author,
     body: post.body,
     createdAt: post.createdAt.toISOString(),
@@ -237,9 +258,27 @@ export function serializePublicComment(comment: PublicComment) {
   };
 }
 
+function channelContextSelect() {
+  return {
+    select: {
+      id: true,
+      deletedAt: true,
+      community: {
+        select: {
+          id: true,
+          ownerId: true,
+          visibility: true,
+          deletedAt: true,
+        },
+      },
+    },
+  };
+}
+
 function postInclude(viewerId?: string) {
   return {
     author: { select: authorProfileSelect },
+    channel: channelContextSelect(),
     _count: {
       select: {
         comments: {
@@ -264,19 +303,58 @@ function normalizePostRecord(
   post: {
     id: string;
     authorId: string;
+    channelId: string | null;
     body: string;
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
     author: AuthorRecord;
+    channel?: ChannelContext | null;
     _count: { comments: number; reactions: number };
     reactions?: Array<{ id: string }> | false;
   },
 ): PostRecord {
   return {
     ...post,
+    channel: post.channel ?? null,
     reactions: Array.isArray(post.reactions) ? post.reactions : [],
   };
+}
+
+async function assertChannelVisible(
+  channel: ChannelContext | null | undefined,
+  viewerId: string | undefined,
+): Promise<void> {
+  if (!channel) {
+    return;
+  }
+  if (channel.deletedAt || channel.community.deletedAt) {
+    throw new HttpError(404, "not_found", "Post not found.");
+  }
+  if (viewerId && viewerId !== channel.community.ownerId) {
+    const hidden = await blockedUserIds(viewerId);
+    if (hidden.includes(channel.community.ownerId)) {
+      throw new HttpError(404, "not_found", "Post not found.");
+    }
+  }
+  if (channel.community.visibility === "PRIVATE") {
+    if (!viewerId) {
+      throw new HttpError(404, "not_found", "Post not found.");
+    }
+    const prisma = getPrismaClient();
+    const member = await prisma.communityMember.findUnique({
+      where: {
+        communityId_userId: {
+          communityId: channel.community.id,
+          userId: viewerId,
+        },
+      },
+      select: { leftAt: true },
+    });
+    if (!member || member.leftAt) {
+      throw new HttpError(404, "not_found", "Post not found.");
+    }
+  }
 }
 
 async function loadVisiblePost(postId: string, viewerId?: string): Promise<PostRecord> {
@@ -299,7 +377,67 @@ async function loadVisiblePost(postId: string, viewerId?: string): Promise<PostR
     }
   }
 
+  if (post.channelId && !post.channel) {
+    throw new HttpError(404, "not_found", "Post not found.");
+  }
+  await assertChannelVisible(post.channel ?? null, viewerId);
+
   return normalizePostRecord(post);
+}
+
+async function requireChannelMembership(
+  channelId: string,
+  userId: string,
+): Promise<CommunityRole> {
+  const prisma = getPrismaClient();
+  const member = await prisma.communityMember.findFirst({
+    where: {
+      userId,
+      leftAt: null,
+      community: { channels: { some: { id: channelId } } },
+    },
+    select: { role: true },
+  });
+  if (!member) {
+    throw new HttpError(403, "forbidden", "You must be a member to interact here.");
+  }
+  return member.role as CommunityRole;
+}
+
+async function loadChannelForAccess(channelId: string): Promise<{
+  id: string;
+  type: ChannelType;
+  communityId: string;
+  community: { id: string; ownerId: string; visibility: "PUBLIC" | "PRIVATE"; deletedAt: Date | null };
+}> {
+  assertId(channelId, "channel id");
+  const prisma = getPrismaClient();
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: {
+      id: true,
+      type: true,
+      communityId: true,
+      deletedAt: true,
+      community: {
+        select: {
+          id: true,
+          ownerId: true,
+          visibility: true,
+          deletedAt: true,
+        },
+      },
+    },
+  });
+  if (!channel || channel.deletedAt || channel.community.deletedAt) {
+    throw new HttpError(404, "not_found", "Channel not found.");
+  }
+  return {
+    id: channel.id,
+    type: channel.type as ChannelType,
+    communityId: channel.communityId,
+    community: channel.community,
+  };
 }
 
 async function withMedia(
@@ -439,6 +577,7 @@ export async function getFeed(
   const rows = await prisma.post.findMany({
     where: {
       deletedAt: null,
+      channelId: null,
       authorId: { in: authorIds },
       author: notDeletedAuthor(),
       ...cursorWhereDesc(params.cursor),
@@ -470,7 +609,10 @@ export async function createComment(
 ): Promise<PublicComment> {
   requireDatabaseConfigured();
   const actor = await requireActiveUser(sessionToken);
-  await loadVisiblePost(postId, actor.id);
+  const post = await loadVisiblePost(postId, actor.id);
+  if (post.channelId) {
+    await requireChannelMembership(post.channelId, actor.id);
+  }
   const body = readRequiredBody(input.body, "body");
   if (!isValidCommentBody(body)) {
     throw new HttpError(400, "invalid_input", "Invalid input.", {
@@ -634,7 +776,10 @@ export async function addReaction(
 ): Promise<{ reactionCount: number; viewerHasLiked: boolean; type: ReactionType }> {
   requireDatabaseConfigured();
   const actor = await requireActiveUser(sessionToken);
-  await loadVisiblePost(postId, actor.id);
+  const post = await loadVisiblePost(postId, actor.id);
+  if (post.channelId) {
+    await requireChannelMembership(post.channelId, actor.id);
+  }
   const type = parseReactionType(input.type);
   const prisma = getPrismaClient();
 
@@ -676,4 +821,96 @@ export async function removeReaction(
   });
   const reactionCount = await prisma.reaction.count({ where: { postId } });
   return { reactionCount, viewerHasLiked: false, type };
+}
+
+export async function createChannelPost(
+  sessionToken: string | undefined,
+  channelId: string,
+  input: { body: unknown; mediaIds?: unknown },
+): Promise<PublicPost> {
+  requireDatabaseConfigured();
+  const actor = await requireActiveUser(sessionToken);
+  const channel = await loadChannelForAccess(channelId);
+  if (actor.id !== channel.community.ownerId) {
+    const hidden = await blockedUserIds(actor.id);
+    if (hidden.includes(channel.community.ownerId)) {
+      throw new HttpError(404, "not_found", "Channel not found.");
+    }
+  }
+  const role = await requireChannelMembership(channelId, actor.id);
+  if (!canWriteChannel(role, channel.type)) {
+    throw new HttpError(
+      403,
+      "forbidden",
+      "Only owners and admins can post in announcement channels.",
+    );
+  }
+
+  const body = readRequiredBody(input.body, "body");
+  if (!isValidPostBody(body)) {
+    throw new HttpError(400, "invalid_input", "Invalid input.", {
+      body: `Post body must be 1-${contentLimits.postBodyMaxLength} characters.`,
+    });
+  }
+  const mediaIds = parseMediaIds(input.mediaIds);
+  await assertAttachableMedia(actor.id, mediaIds);
+
+  const prisma = getPrismaClient();
+  const post = await prisma.post.create({
+    data: { authorId: actor.id, channelId, body },
+    include: postInclude(actor.id),
+  });
+  if (mediaIds.length > 0) {
+    await replacePostMedia(post.id, mediaIds);
+  }
+  return withMedia(normalizePostRecord(post), actor.id);
+}
+
+export async function listChannelPosts(
+  sessionToken: string | undefined,
+  channelId: string,
+  params: PageParams,
+): Promise<PageResult<PublicPost>> {
+  requireDatabaseConfigured();
+  const viewer = await getCurrentUser(sessionToken);
+  const channel = await loadChannelForAccess(channelId);
+  await assertChannelVisible(
+    {
+      id: channel.id,
+      deletedAt: null,
+      community: channel.community,
+    },
+    viewer?.id,
+  );
+
+  const hidden = viewer ? await blockedUserIds(viewer.id) : [];
+  const prisma = getPrismaClient();
+  const rows = await prisma.post.findMany({
+    where: {
+      channelId,
+      deletedAt: null,
+      author: {
+        ...notDeletedAuthor(),
+        ...(hidden.length > 0 ? { id: { notIn: hidden } } : {}),
+      },
+      ...cursorWhereDesc(params.cursor),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: params.limit + 1,
+    include: postInclude(viewer?.id),
+  });
+
+  const page = await Promise.all(
+    rows
+      .slice(0, params.limit)
+      .map((row) => withMedia(normalizePostRecord(row), viewer?.id)),
+  );
+  const lastRow = rows[params.limit - 1];
+  return {
+    items: page,
+    nextCursor:
+      rows.length > params.limit && lastRow
+        ? encodeCursor(lastRow.createdAt, lastRow.id)
+        : null,
+  };
 }

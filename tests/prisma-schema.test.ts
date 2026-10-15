@@ -33,6 +33,12 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model ConversationParticipant");
     expect(schema).toContain("model Message");
     expect(schema).toContain("model MessageMedia");
+    expect(schema).toContain("model Community");
+    expect(schema).toContain("model CommunityMember");
+    expect(schema).toContain("model Channel");
+    expect(schema).toContain("enum CommunityVisibility");
+    expect(schema).toContain("enum CommunityRole");
+    expect(schema).toContain("enum ChannelType");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -225,6 +231,48 @@ describe("Prisma messaging migration", () => {
       'CREATE INDEX "messages_conversation_id_created_at_id_idx"',
     );
     expect(sql).toContain('CREATE UNIQUE INDEX "message_media_media_id_key"');
+    expect(sql).toContain("ON DELETE CASCADE");
+  });
+});
+
+describe("Prisma communities migration", () => {
+  const communitiesSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261015120000_add_communities_channels",
+    "migration.sql",
+  );
+
+  it("creates communities, members, and channels with scoped uniqueness and FKs", () => {
+    expect(existsSync(communitiesSqlPath)).toBe(true);
+    const sql = readFileSync(communitiesSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "communities"');
+    expect(sql).toContain('CREATE TABLE "community_members"');
+    expect(sql).toContain('CREATE TABLE "channels"');
+    expect(sql).toContain(
+      'CREATE TYPE "CommunityVisibility" AS ENUM (\'PUBLIC\', \'PRIVATE\')',
+    );
+    expect(sql).toContain(
+      'CREATE TYPE "CommunityRole" AS ENUM (\'OWNER\', \'ADMIN\', \'MEMBER\')',
+    );
+    expect(sql).toContain(
+      'CREATE TYPE "ChannelType" AS ENUM (\'TEXT\', \'ANNOUNCEMENT\')',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "communities_slug_normalized_key"',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "community_members_community_id_user_id_key"',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "community_members_single_active_owner"',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "channels_community_id_slug_normalized_key"',
+    );
+    expect(sql).toContain('ALTER TABLE "posts" ADD COLUMN "channel_id" UUID');
     expect(sql).toContain("ON DELETE CASCADE");
   });
 });

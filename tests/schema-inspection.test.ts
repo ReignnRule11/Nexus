@@ -26,25 +26,28 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
       FROM pg_class
       WHERE relkind = 'r'
         AND relnamespace = 'public'::regnamespace
-        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media')
+        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media', 'communities', 'community_members', 'channels')
       ORDER BY relname
     `;
     const constraints = await prisma.$queryRaw<ConstraintRow[]>`
       SELECT conname, contype::text AS contype
       FROM pg_constraint
-      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass, 'media'::regclass, 'post_media'::regclass, 'conversations'::regclass, 'conversation_participants'::regclass, 'messages'::regclass, 'message_media'::regclass)
+      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass, 'media'::regclass, 'post_media'::regclass, 'conversations'::regclass, 'conversation_participants'::regclass, 'messages'::regclass, 'message_media'::regclass, 'communities'::regclass, 'community_members'::regclass, 'channels'::regclass)
       ORDER BY conname
     `;
     const indexes = await prisma.$queryRaw<IndexRow[]>`
       SELECT indexname
       FROM pg_indexes
-      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media')
+      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media', 'communities', 'community_members', 'channels')
       ORDER BY indexname
     `;
 
     expect(tables.map((row) => row.relname)).toEqual([
       "blocks",
+      "channels",
       "comments",
+      "communities",
+      "community_members",
       "conversation_participants",
       "conversations",
       "follows",
@@ -96,6 +99,14 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         { conname: "messages_sender_id_fkey", contype: "f" },
         { conname: "message_media_message_id_fkey", contype: "f" },
         { conname: "message_media_media_id_fkey", contype: "f" },
+        { conname: "communities_pkey", contype: "p" },
+        { conname: "community_members_pkey", contype: "p" },
+        { conname: "channels_pkey", contype: "p" },
+        { conname: "communities_owner_id_fkey", contype: "f" },
+        { conname: "community_members_community_id_fkey", contype: "f" },
+        { conname: "community_members_user_id_fkey", contype: "f" },
+        { conname: "channels_community_id_fkey", contype: "f" },
+        { conname: "posts_channel_id_fkey", contype: "f" },
       ]),
     );
     expect(indexes.map((row) => row.indexname)).toEqual(
@@ -132,6 +143,15 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         "message_media_media_id_key",
         "message_media_message_id_media_id_key",
         "message_media_message_id_position_idx",
+        "communities_slug_normalized_key",
+        "communities_visibility_created_at_id_idx",
+        "communities_deleted_at_idx",
+        "community_members_community_id_user_id_key",
+        "community_members_user_id_community_id_idx",
+        "community_members_single_active_owner",
+        "channels_community_id_slug_normalized_key",
+        "channels_community_id_deleted_at_idx",
+        "posts_channel_id_created_at_id_idx",
       ]),
     );
   });

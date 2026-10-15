@@ -35,6 +35,8 @@ model User {
   media          Media[]
   conversations  ConversationParticipant[]
   messages       Message[]
+  ownedCommunities Community[]        @relation("CommunityOwner")
+  communityMembers CommunityMember[]
 
   @@index([status])
   @@map("users")
@@ -110,20 +112,97 @@ enum ReactionType {
 model Post {
   id        String    @id @default(uuid()) @db.Uuid
   authorId  String    @map("author_id") @db.Uuid
+  channelId String?   @map("channel_id") @db.Uuid
   body      String    @db.VarChar(5000)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  channel   Channel?   @relation(fields: [channelId], references: [id], onDelete: Cascade)
   comments  Comment[]
   reactions Reaction[]
   postMedia PostMedia[]
 
   @@index([authorId, createdAt])
   @@index([createdAt, id])
+  @@index([channelId, createdAt, id])
   @@index([deletedAt])
   @@map("posts")
+}
+
+enum CommunityVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum CommunityRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ChannelType {
+  TEXT
+  ANNOUNCEMENT
+}
+
+model Community {
+  id             String              @id @default(uuid()) @db.Uuid
+  ownerId        String              @map("owner_id") @db.Uuid
+  name           String              @db.VarChar(80)
+  slug           String              @db.VarChar(40)
+  slugNormalized String              @unique @map("slug_normalized") @db.VarChar(40)
+  description    String?             @db.VarChar(500)
+  visibility     CommunityVisibility @default(PUBLIC)
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  deletedAt      DateTime?           @map("deleted_at")
+
+  owner    User              @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members  CommunityMember[]
+  channels Channel[]
+
+  @@index([visibility, createdAt, id])
+  @@index([deletedAt])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String        @id @default(uuid()) @db.Uuid
+  communityId String        @map("community_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now()) @map("joined_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  leftAt      DateTime?     @map("left_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
+  @@index([userId, communityId])
+  @@map("community_members")
+}
+
+model Channel {
+  id             String      @id @default(uuid()) @db.Uuid
+  communityId    String      @map("community_id") @db.Uuid
+  name           String      @db.VarChar(80)
+  slug           String      @db.VarChar(40)
+  slugNormalized String      @map("slug_normalized") @db.VarChar(40)
+  description    String?     @db.VarChar(500)
+  type           ChannelType @default(TEXT)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  posts     Post[]
+
+  @@unique([communityId, slugNormalized])
+  @@index([communityId, deletedAt])
+  @@map("channels")
 }
 
 model Comment {
