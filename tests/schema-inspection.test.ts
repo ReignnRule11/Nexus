@@ -26,27 +26,31 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
       FROM pg_class
       WHERE relkind = 'r'
         AND relnamespace = 'public'::regnamespace
-        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media')
+        AND relname IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media')
       ORDER BY relname
     `;
     const constraints = await prisma.$queryRaw<ConstraintRow[]>`
       SELECT conname, contype::text AS contype
       FROM pg_constraint
-      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass, 'media'::regclass, 'post_media'::regclass)
+      WHERE conrelid IN ('users'::regclass, 'profiles'::regclass, 'sessions'::regclass, 'follows'::regclass, 'blocks'::regclass, 'posts'::regclass, 'comments'::regclass, 'reactions'::regclass, 'media'::regclass, 'post_media'::regclass, 'conversations'::regclass, 'conversation_participants'::regclass, 'messages'::regclass, 'message_media'::regclass)
       ORDER BY conname
     `;
     const indexes = await prisma.$queryRaw<IndexRow[]>`
       SELECT indexname
       FROM pg_indexes
-      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media')
+      WHERE tablename IN ('users', 'profiles', 'sessions', 'follows', 'blocks', 'posts', 'comments', 'reactions', 'media', 'post_media', 'conversations', 'conversation_participants', 'messages', 'message_media')
       ORDER BY indexname
     `;
 
     expect(tables.map((row) => row.relname)).toEqual([
       "blocks",
       "comments",
+      "conversation_participants",
+      "conversations",
       "follows",
       "media",
+      "message_media",
+      "messages",
       "post_media",
       "posts",
       "profiles",
@@ -82,6 +86,16 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         { conname: "media_owner_id_fkey", contype: "f" },
         { conname: "post_media_post_id_fkey", contype: "f" },
         { conname: "post_media_media_id_fkey", contype: "f" },
+        { conname: "conversations_pkey", contype: "p" },
+        { conname: "conversation_participants_pkey", contype: "p" },
+        { conname: "messages_pkey", contype: "p" },
+        { conname: "message_media_pkey", contype: "p" },
+        { conname: "conversation_participants_conversation_id_fkey", contype: "f" },
+        { conname: "conversation_participants_user_id_fkey", contype: "f" },
+        { conname: "messages_conversation_id_fkey", contype: "f" },
+        { conname: "messages_sender_id_fkey", contype: "f" },
+        { conname: "message_media_message_id_fkey", contype: "f" },
+        { conname: "message_media_media_id_fkey", contype: "f" },
       ]),
     );
     expect(indexes.map((row) => row.indexname)).toEqual(
@@ -107,6 +121,17 @@ describe.skipIf(!canInspect)("migrated PostgreSQL identity schema", () => {
         "media_owner_id_created_at_idx",
         "post_media_media_id_key",
         "post_media_post_id_media_id_key",
+        "conversations_participant_key_key",
+        "conversations_last_message_at_idx",
+        "conversation_participants_conversation_id_user_id_key",
+        "conversation_participants_user_id_conversation_id_idx",
+        "messages_conversation_id_created_at_id_idx",
+        "messages_sender_id_created_at_idx",
+        "messages_deleted_at_idx",
+        "message_media_message_id_key",
+        "message_media_media_id_key",
+        "message_media_message_id_media_id_key",
+        "message_media_message_id_position_idx",
       ]),
     );
   });

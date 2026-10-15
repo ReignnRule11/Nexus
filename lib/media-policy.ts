@@ -1,6 +1,7 @@
 export const mediaLimits = {
   maxImageBytes: 8 * 1024 * 1024,
   maxAttachmentsPerPost: 4,
+  maxAttachmentsPerMessage: 1,
   uploadUrlTtlSeconds: 300,
   downloadUrlTtlSeconds: 120,
 } as const;

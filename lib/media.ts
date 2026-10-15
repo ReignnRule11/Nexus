@@ -81,7 +81,7 @@ async function blockedUserIds(userId: string): Promise<string[]> {
   ];
 }
 
-function toPublicMedia(media: {
+export function toPublicMedia(media: {
   id: string;
   originalFilename: string;
   mimeType: string;
@@ -110,7 +110,10 @@ export function serializePublicMedia(media: PublicMedia) {
   };
 }
 
-export function parseMediaIds(value: unknown): string[] {
+export function parseMediaIds(
+  value: unknown,
+  maxAttachments: number = mediaLimits.maxAttachmentsPerPost,
+): string[] {
   if (value === undefined) {
     return [];
   }
@@ -119,9 +122,9 @@ export function parseMediaIds(value: unknown): string[] {
       mediaIds: "mediaIds must be an array of media ids.",
     });
   }
-  if (value.length > mediaLimits.maxAttachmentsPerPost) {
+  if (value.length > maxAttachments) {
     throw new HttpError(400, "invalid_input", "Invalid input.", {
-      mediaIds: `A post may include at most ${mediaLimits.maxAttachmentsPerPost} attachments.`,
+      mediaIds: `At most ${maxAttachments} attachments are allowed.`,
     });
   }
   const ids: string[] = [];
@@ -152,7 +155,7 @@ export async function assertAttachableMedia(
   const prisma = getPrismaClient();
   const rows = await prisma.media.findMany({
     where: { id: { in: mediaIds } },
-    include: { postMedia: true },
+    include: { postMedia: true, messageMedia: true },
   });
   if (rows.length !== mediaIds.length) {
     throw new HttpError(400, "invalid_input", "Invalid input.", {
@@ -173,12 +176,47 @@ export async function assertAttachableMedia(
         mediaIds: "Media must be available before it can be attached.",
       });
     }
-    if (row.postMedia) {
+    if (row.postMedia || row.messageMedia) {
       throw new HttpError(400, "invalid_input", "Invalid input.", {
-        mediaIds: "Media is already attached to a post.",
+        mediaIds: "Media is already attached.",
       });
     }
   }
+}
+
+export async function replaceMessageMedia(
+  messageId: string,
+  mediaIds: string[],
+): Promise<void> {
+  requireDatabaseConfigured();
+  const prisma = getPrismaClient();
+  await prisma.$transaction([
+    prisma.messageMedia.deleteMany({ where: { messageId } }),
+    ...mediaIds.map((mediaId, position) =>
+      prisma.messageMedia.create({
+        data: { messageId, mediaId, position },
+      }),
+    ),
+  ]);
+}
+
+export async function listPublicMediaForMessage(
+  messageId: string,
+): Promise<PublicMedia[]> {
+  requireDatabaseConfigured();
+  const prisma = getPrismaClient();
+  const rows = await prisma.messageMedia.findMany({
+    where: {
+      messageId,
+      media: {
+        deletedAt: null,
+        status: "AVAILABLE",
+      },
+    },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { media: true },
+  });
+  return rows.map((row) => toPublicMedia(row.media));
 }
 
 export async function replacePostMedia(
@@ -352,6 +390,23 @@ export async function getMediaAccess(
           },
         },
       },
+      messageMedia: {
+        include: {
+          message: {
+            select: {
+              id: true,
+              deletedAt: true,
+              conversation: {
+                select: {
+                  participants: {
+                    select: { userId: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -375,6 +430,14 @@ export async function getMediaAccess(
       post.author.status === "DELETED" ||
       post.author.deletedAt
     ) {
+      throw new HttpError(404, "not_found", "Media not found.");
+    }
+  } else if (media.messageMedia) {
+    const message = media.messageMedia.message;
+    const isParticipant = message.conversation.participants.some(
+      (participant) => participant.userId === viewer.id,
+    );
+    if (message.deletedAt || !isParticipant) {
       throw new HttpError(404, "not_found", "Media not found.");
     }
   } else if (media.ownerId !== viewer.id) {
@@ -405,6 +468,7 @@ export async function deleteMedia(
 
   await prisma.$transaction([
     prisma.postMedia.deleteMany({ where: { mediaId } }),
+    prisma.messageMedia.deleteMany({ where: { mediaId } }),
     prisma.media.update({
       where: { id: mediaId },
       data: { status: "DELETED", deletedAt: new Date() },

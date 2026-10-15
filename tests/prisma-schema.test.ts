@@ -29,6 +29,10 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model Reaction");
     expect(schema).toContain("model Media");
     expect(schema).toContain("model PostMedia");
+    expect(schema).toContain("model Conversation");
+    expect(schema).toContain("model ConversationParticipant");
+    expect(schema).toContain("model Message");
+    expect(schema).toContain("model MessageMedia");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -190,6 +194,37 @@ describe("Prisma media migration", () => {
     expect(sql).toContain('CREATE UNIQUE INDEX "media_object_key_key"');
     expect(sql).toContain('CREATE INDEX "media_owner_id_created_at_idx"');
     expect(sql).toContain('CREATE UNIQUE INDEX "post_media_media_id_key"');
+    expect(sql).toContain("ON DELETE CASCADE");
+  });
+});
+
+describe("Prisma messaging migration", () => {
+  const messagingSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261014120000_add_messaging",
+    "migration.sql",
+  );
+
+  it("creates conversations, participants, messages, and message_media with pair uniqueness", () => {
+    expect(existsSync(messagingSqlPath)).toBe(true);
+    const sql = readFileSync(messagingSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "conversations"');
+    expect(sql).toContain('CREATE TABLE "conversation_participants"');
+    expect(sql).toContain('CREATE TABLE "messages"');
+    expect(sql).toContain('CREATE TABLE "message_media"');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "conversations_participant_key_key"',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "conversation_participants_conversation_id_user_id_key"',
+    );
+    expect(sql).toContain(
+      'CREATE INDEX "messages_conversation_id_created_at_id_idx"',
+    );
+    expect(sql).toContain('CREATE UNIQUE INDEX "message_media_media_id_key"');
     expect(sql).toContain("ON DELETE CASCADE");
   });
 });
