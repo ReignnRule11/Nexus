@@ -15,6 +15,8 @@ import {
   type PublicMedia,
 } from "@/lib/media";
 import { mediaLimits } from "@/lib/media-policy";
+import { messageEventKey } from "@/lib/notification-policy";
+import { createNotificationIfAbsent } from "@/lib/notifications";
 import { decodeCursor, encodeCursor, type PageResult } from "@/lib/pagination";
 
 export const MESSAGING_SEMANTICS = {
@@ -596,27 +598,39 @@ export async function sendMessage(
 
   const firstMediaId = mediaIds[0];
   const prisma = getPrismaClient();
-  const message = await prisma.message.create({
-    data: {
-      conversationId,
-      senderId: actor.id,
-      body,
-      messageMedia: firstMediaId
-        ? { create: { mediaId: firstMediaId, position: 0 } }
-        : undefined,
-    },
-    include: messageInclude,
-  });
-  await prisma.$transaction([
-    prisma.conversation.update({
+  const message = await prisma.$transaction(async (tx) => {
+    const created = await tx.message.create({
+      data: {
+        conversationId,
+        senderId: actor.id,
+        body,
+        messageMedia: firstMediaId
+          ? { create: { mediaId: firstMediaId, position: 0 } }
+          : undefined,
+      },
+      include: messageInclude,
+    });
+    await tx.conversation.update({
       where: { id: conversationId },
-      data: { lastMessageAt: message.createdAt },
-    }),
-    prisma.conversationParticipant.updateMany({
+      data: { lastMessageAt: created.createdAt },
+    });
+    await tx.conversationParticipant.updateMany({
       where: { conversationId, hiddenAt: { not: null } },
       data: { hiddenAt: null },
-    }),
-  ]);
+    });
+    await createNotificationIfAbsent(
+      {
+        recipientId: recipient.id,
+        actorId: actor.id,
+        type: "MESSAGE",
+        eventKey: messageEventKey(created.id),
+        conversationId,
+        messageId: created.id,
+      },
+      tx,
+    );
+    return created;
+  });
 
   return toPublicMessage(message as unknown as MessageRecord);
 }

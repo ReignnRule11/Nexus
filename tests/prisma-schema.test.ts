@@ -36,9 +36,11 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("model Community");
     expect(schema).toContain("model CommunityMember");
     expect(schema).toContain("model Channel");
+    expect(schema).toContain("model Notification");
     expect(schema).toContain("enum CommunityVisibility");
     expect(schema).toContain("enum CommunityRole");
     expect(schema).toContain("enum ChannelType");
+    expect(schema).toContain("enum NotificationType");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -276,3 +278,50 @@ describe("Prisma communities migration", () => {
     expect(sql).toContain("ON DELETE CASCADE");
   });
 });
+
+describe("Prisma notifications migration", () => {
+  const notificationsSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261016120000_add_notifications",
+    "migration.sql",
+  );
+
+  it("creates notifications with a unique idempotency key and recipient/actor FKs", () => {
+    expect(existsSync(notificationsSqlPath)).toBe(true);
+    const sql = readFileSync(notificationsSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "notifications"');
+    expect(sql).toContain(
+      'CREATE TYPE "NotificationType" AS ENUM (\'FOLLOW\', \'COMMENT\', \'REACTION\', \'MESSAGE\', \'COMMUNITY_MEMBER_JOINED\', \'COMMUNITY_ROLE_CHANGED\')',
+    );
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "notifications_event_key_key" ON "notifications"("event_key")',
+    );
+    expect(sql).toContain(
+      'CREATE INDEX "notifications_recipient_id_created_at_idx"',
+    );
+    expect(sql).toContain(
+      'CREATE INDEX "notifications_recipient_id_read_at_created_at_idx"',
+    );
+    expect(sql).toContain(
+      'FOREIGN KEY ("recipient_id") REFERENCES "users"("id") ON DELETE CASCADE',
+    );
+    expect(sql).toContain(
+      'FOREIGN KEY ("actor_id") REFERENCES "users"("id") ON DELETE SET NULL',
+    );
+  });
+
+  it("does not store sensitive content in notifications", () => {
+    const schema = readFileSync(schemaPath, "utf8");
+    const notificationsBlock = schema.slice(
+      schema.indexOf("model Notification"),
+    );
+    expect(notificationsBlock).not.toContain("body");
+    expect(notificationsBlock).not.toContain("password");
+    expect(notificationsBlock).not.toContain("email");
+    expect(notificationsBlock).not.toContain("token");
+  });
+});
+

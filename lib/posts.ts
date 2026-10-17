@@ -27,6 +27,11 @@ import {
   type PublicMedia,
 } from "@/lib/media";
 import {
+  commentEventKey,
+  reactionEventKey,
+} from "@/lib/notification-policy";
+import { createNotificationIfAbsent } from "@/lib/notifications";
+import {
   decodeCursor,
   encodeCursor,
   type PageParams,
@@ -621,15 +626,31 @@ export async function createComment(
   }
 
   const prisma = getPrismaClient();
-  const comment = await prisma.comment.create({
-    data: {
-      postId,
-      authorId: actor.id,
-      body,
-    },
-    include: {
-      author: { select: authorProfileSelect },
-    },
+  const comment = await prisma.$transaction(async (tx) => {
+    const created = await tx.comment.create({
+      data: {
+        postId,
+        authorId: actor.id,
+        body,
+      },
+      include: {
+        author: { select: authorProfileSelect },
+      },
+    });
+    if (created.authorId !== post.authorId) {
+      await createNotificationIfAbsent(
+        {
+          recipientId: post.authorId,
+          actorId: actor.id,
+          type: "COMMENT",
+          eventKey: commentEventKey(created.id),
+          postId,
+          commentId: created.id,
+        },
+        tx,
+      );
+    }
+    return created;
   });
   if (!comment.author.profile) {
     throw new HttpError(500, "internal", "Something went wrong.");
@@ -784,12 +805,25 @@ export async function addReaction(
   const prisma = getPrismaClient();
 
   try {
-    await prisma.reaction.create({
-      data: {
-        postId,
-        userId: actor.id,
-        type,
-      },
+    await prisma.$transaction(async (tx) => {
+      const reaction = await tx.reaction.create({
+        data: {
+          postId,
+          userId: actor.id,
+          type,
+        },
+        select: { id: true },
+      });
+      await createNotificationIfAbsent(
+        {
+          recipientId: post.authorId,
+          actorId: actor.id,
+          type: "REACTION",
+          eventKey: reactionEventKey(reaction.id),
+          postId,
+        },
+        tx,
+      );
     });
   } catch (error) {
     if (

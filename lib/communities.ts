@@ -24,6 +24,11 @@ import { getPrismaClient } from "@/lib/db";
 import { loadEnv } from "@/lib/env";
 import { toPublicGraphProfile, type PublicGraphProfile } from "@/lib/graph";
 import { HttpError } from "@/lib/http-error";
+import {
+  communityJoinEventKey,
+  communityRoleEventKey,
+} from "@/lib/notification-policy";
+import { createNotificationIfAbsent } from "@/lib/notifications";
 import { decodeCursor, encodeCursor, type PageResult } from "@/lib/pagination";
 
 export { COMMUNITY_SEMANTICS, communityLimits };
@@ -690,10 +695,35 @@ export async function joinCommunity(
     throw notFound();
   }
 
-  await prisma.communityMember.upsert({
-    where: { communityId_userId: { communityId, userId: actor.id } },
-    create: { communityId, userId: actor.id, role: "MEMBER" },
-    update: { leftAt: null },
+  await prisma.$transaction(async (tx) => {
+    const membership = await tx.communityMember.upsert({
+      where: { communityId_userId: { communityId, userId: actor.id } },
+      create: { communityId, userId: actor.id, role: "MEMBER" },
+      update: { leftAt: null },
+      select: { id: true },
+    });
+    const staff = await tx.communityMember.findMany({
+      where: {
+        communityId,
+        leftAt: null,
+        role: { in: ["OWNER", "ADMIN"] },
+        userId: { not: actor.id },
+        user: { status: { not: "DELETED" }, deletedAt: null },
+      },
+      select: { userId: true },
+    });
+    for (const recipient of staff) {
+      await createNotificationIfAbsent(
+        {
+          recipientId: recipient.userId,
+          actorId: actor.id,
+          type: "COMMUNITY_MEMBER_JOINED",
+          eventKey: communityJoinEventKey(membership.id, recipient.userId),
+          communityId,
+        },
+        tx,
+      );
+    }
   });
   const refreshed = await loadCommunityOr404(communityId);
   const membership = await activeMembership(communityId, actor.id);
@@ -844,22 +874,54 @@ export async function updateMemberRole(
         where: { communityId_userId: { communityId, userId: actor.id } },
         data: { role: "ADMIN" },
       });
-      await tx.communityMember.update({
+      const promoted = await tx.communityMember.update({
         where: { communityId_userId: { communityId, userId: targetUserId } },
         data: { role: "OWNER" },
+        select: { id: true, updatedAt: true },
       });
       await tx.community.update({
         where: { id: communityId },
         data: { ownerId: targetUserId },
       });
+      await createNotificationIfAbsent(
+        {
+          recipientId: targetUserId,
+          actorId: actor.id,
+          type: "COMMUNITY_ROLE_CHANGED",
+          eventKey: communityRoleEventKey(promoted.id, promoted.updatedAt),
+          communityId,
+        },
+        tx,
+      );
     });
   } else {
     if (target.role === "OWNER") {
       throw conflict("The owner's role cannot be changed directly.");
     }
-    await prisma.communityMember.update({
-      where: { communityId_userId: { communityId, userId: targetUserId } },
-      data: { role: nextRole },
+    if (target.role === nextRole) {
+      return {
+        userId: targetUserId,
+        role: target.role,
+        joinedAt: target.joinedAt,
+        profile: toPublicProfile(target.user as MemberUser),
+      };
+    }
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.communityMember.update({
+        where: { communityId_userId: { communityId, userId: targetUserId } },
+        data: { role: nextRole },
+        select: { id: true, updatedAt: true },
+      });
+      await createNotificationIfAbsent(
+        {
+          recipientId: targetUserId,
+          actorId: actor.id,
+          type: "COMMUNITY_ROLE_CHANGED",
+          eventKey: communityRoleEventKey(changed.id, changed.updatedAt),
+          communityId,
+        },
+        tx,
+      );
     });
   }
 

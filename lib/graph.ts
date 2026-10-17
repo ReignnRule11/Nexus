@@ -6,6 +6,8 @@ import { requireActiveUser } from "@/lib/auth";
 import { getPrismaClient } from "@/lib/db";
 import { loadEnv } from "@/lib/env";
 import { HttpError } from "@/lib/http-error";
+import { followEventKey } from "@/lib/notification-policy";
+import { createNotificationIfAbsent } from "@/lib/notifications";
 import { decodeCursor, encodeCursor, type PageResult } from "@/lib/pagination";
 
 export const GRAPH_SEMANTICS = {
@@ -269,11 +271,23 @@ export async function followUser(
 
   const prisma = getPrismaClient();
   try {
-    await prisma.follow.create({
-      data: {
-        followerId: actor.id,
-        followingId: targetId,
-      },
+    await prisma.$transaction(async (tx) => {
+      const follow = await tx.follow.create({
+        data: {
+          followerId: actor.id,
+          followingId: targetId,
+        },
+        select: { id: true },
+      });
+      await createNotificationIfAbsent(
+        {
+          recipientId: targetId,
+          actorId: actor.id,
+          type: "FOLLOW",
+          eventKey: followEventKey(follow.id),
+        },
+        tx,
+      );
     });
   } catch (error) {
     if (
