@@ -17,6 +17,9 @@ export type Env = {
   userLlmApiKey: string | undefined;
   userLlmBaseUrl: string | undefined;
   userLlmModel: string | undefined;
+  userLlmProvider: string | undefined;
+  userLlmTimeoutMs: string | undefined;
+  userLlmMaxOutputTokens: string | undefined;
 };
 
 export type ConfigItem = {
@@ -69,6 +72,9 @@ export function loadEnv(source: EnvSource = process.env): Env {
     userLlmApiKey: readFrom(source, "USER_LLM_API_KEY"),
     userLlmBaseUrl: readFrom(source, "USER_LLM_BASE_URL"),
     userLlmModel: readFrom(source, "USER_LLM_MODEL"),
+    userLlmProvider: readFrom(source, "USER_LLM_PROVIDER"),
+    userLlmTimeoutMs: readFrom(source, "USER_LLM_TIMEOUT_MS"),
+    userLlmMaxOutputTokens: readFrom(source, "USER_LLM_MAX_OUTPUT_TOKENS"),
   };
 }
 
@@ -88,6 +94,12 @@ export function getConfigStatus(env: Env = loadEnv()): ConfigStatus {
       { name: "USER_LLM_API_KEY", configured: Boolean(env.userLlmApiKey) },
       { name: "USER_LLM_BASE_URL", configured: Boolean(env.userLlmBaseUrl) },
       { name: "USER_LLM_MODEL", configured: Boolean(env.userLlmModel) },
+      { name: "USER_LLM_PROVIDER", configured: Boolean(env.userLlmProvider) },
+      { name: "USER_LLM_TIMEOUT_MS", configured: Boolean(env.userLlmTimeoutMs) },
+      {
+        name: "USER_LLM_MAX_OUTPUT_TOKENS",
+        configured: Boolean(env.userLlmMaxOutputTokens),
+      },
     ],
   };
 }
@@ -183,6 +195,86 @@ export function requireStorageConfig(
   if (!config) {
     throw new Error(
       "Missing required configuration: STORAGE_DRIVER. Object storage is unavailable until a private S3-compatible bucket is provided. Do not use fake credentials.",
+    );
+  }
+  return config;
+}
+
+export const DEFAULT_AI_TIMEOUT_MS = 15_000;
+export const DEFAULT_AI_MAX_OUTPUT_TOKENS = 800;
+export const MIN_AI_TIMEOUT_MS = 1_000;
+export const MAX_AI_TIMEOUT_MS = 60_000;
+export const MIN_AI_MAX_OUTPUT_TOKENS = 16;
+export const MAX_AI_MAX_OUTPUT_TOKENS = 4_096;
+export const DEFAULT_AI_PROVIDER = "openai-compatible";
+
+export type AiConfig = {
+  provider: string;
+  model: string;
+  apiKey: string;
+  baseUrl: string;
+  timeoutMs: number;
+  maxOutputTokens: number;
+};
+
+function parseBoundedInt(
+  raw: string | undefined,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (!raw) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(
+      `Missing required configuration: ${name}. Set a value between ${min} and ${max}. Do not use fake credentials.`,
+    );
+  }
+  return parsed;
+}
+
+export function loadAiConfig(source: EnvSource = process.env): AiConfig | undefined {
+  const env = loadEnv(source);
+  const hasAny = Boolean(env.userLlmApiKey || env.userLlmBaseUrl || env.userLlmModel);
+  if (!hasAny) {
+    return undefined;
+  }
+  if (!env.userLlmApiKey || !env.userLlmBaseUrl || !env.userLlmModel) {
+    throw new Error(
+      "Missing required configuration: USER_LLM_API_KEY, USER_LLM_BASE_URL, USER_LLM_MODEL. AI is unavailable until a user-provided provider is configured. Do not use fake credentials.",
+    );
+  }
+
+  return {
+    provider: env.userLlmProvider ?? DEFAULT_AI_PROVIDER,
+    model: env.userLlmModel,
+    apiKey: env.userLlmApiKey,
+    baseUrl: env.userLlmBaseUrl,
+    timeoutMs: parseBoundedInt(
+      env.userLlmTimeoutMs,
+      "USER_LLM_TIMEOUT_MS",
+      DEFAULT_AI_TIMEOUT_MS,
+      MIN_AI_TIMEOUT_MS,
+      MAX_AI_TIMEOUT_MS,
+    ),
+    maxOutputTokens: parseBoundedInt(
+      env.userLlmMaxOutputTokens,
+      "USER_LLM_MAX_OUTPUT_TOKENS",
+      DEFAULT_AI_MAX_OUTPUT_TOKENS,
+      MIN_AI_MAX_OUTPUT_TOKENS,
+      MAX_AI_MAX_OUTPUT_TOKENS,
+    ),
+  };
+}
+
+export function requireAiConfig(source: EnvSource = process.env): AiConfig {
+  const config = loadAiConfig(source);
+  if (!config) {
+    throw new Error(
+      "Missing required configuration: USER_LLM_API_KEY, USER_LLM_BASE_URL, USER_LLM_MODEL. AI is unavailable until a user-provided provider is configured. Do not use fake credentials.",
     );
   }
   return config;

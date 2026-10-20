@@ -6,17 +6,15 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, and private media storage.
+This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, and a server-side AI Social Agent API.
 
 The following are **not implemented**:
 
 - product UI beyond the landing page
-- messaging
-- communities and channels
-- notifications
+- a full AI chat interface
+- autonomous AI actions
 - moderation
 - search engine
-- AI features
 - ranking or recommendation
 
 Do not treat this repository as a working product.
@@ -83,6 +81,9 @@ cp .env.example .env.local
 - `USER_LLM_API_KEY`
 - `USER_LLM_BASE_URL`
 - `USER_LLM_MODEL`
+- `USER_LLM_PROVIDER`
+- `USER_LLM_TIMEOUT_MS`
+- `USER_LLM_MAX_OUTPUT_TOKENS`
 
 Leave these empty until a later phase requires them. Do not invent credentials. Do not copy keys from the agent runtime or any other environment.
 
@@ -158,4 +159,4 @@ npm run db:migrate
 
 ## Current MVP status
 
-Phase 07 private media storage and post attachments. Messaging, communities, notifications, and later product phases have not started.
+Phase 11 adds an authenticated, fail-closed AI Social Agent at `POST /api/ai/agent`. The agent can retrieve authorized discovery context and draft proposed actions. It does not execute follows, messages, joins, posts, or account changes. Project Nexus is not production-ready.

@@ -69,6 +69,12 @@ describe("server-only database module", () => {
       "media.ts",
       "storage.ts",
       "storage-s3.ts",
+      "ai/policy.ts",
+      "ai/schemas.ts",
+      "ai/provider.ts",
+      "ai/context.ts",
+      "ai/tools.ts",
+      "ai/agent.ts",
     ];
 
     for (const file of files) {

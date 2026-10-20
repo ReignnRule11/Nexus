@@ -3,7 +3,9 @@ import {
   assertRequiredWhenUsed,
   getConfigStatus,
   loadEnv,
+  loadAiConfig,
   loadStorageConfig,
+  requireAiConfig,
   requireAuthSecret,
   requireStorageConfig,
   serverSecretNames,
@@ -19,6 +21,9 @@ describe("environment configuration", () => {
     expect(env.userLlmApiKey).toBeUndefined();
     expect(env.userLlmBaseUrl).toBeUndefined();
     expect(env.userLlmModel).toBeUndefined();
+    expect(env.userLlmProvider).toBeUndefined();
+    expect(env.userLlmTimeoutMs).toBeUndefined();
+    expect(env.userLlmMaxOutputTokens).toBeUndefined();
     expect(env.storageDriver).toBeUndefined();
     expect(env.s3AccessKeyId).toBeUndefined();
     expect(env.s3SecretAccessKey).toBeUndefined();
@@ -91,5 +96,32 @@ describe("environment configuration", () => {
         STORAGE_DRIVER: "filesystem",
       }),
     ).toThrow(/STORAGE_DRIVER/);
+  });
+
+  it("treats AI configuration as absent until a complete user-provided provider is set", () => {
+    expect(loadAiConfig({})).toBeUndefined();
+    expect(() => requireAiConfig({})).toThrow(
+      /USER_LLM_API_KEY, USER_LLM_BASE_URL, USER_LLM_MODEL/,
+    );
+    expect(() =>
+      loadAiConfig({ USER_LLM_API_KEY: "not-a-real-key" }),
+    ).toThrow(/USER_LLM_API_KEY, USER_LLM_BASE_URL, USER_LLM_MODEL/);
+  });
+
+  it("loads a complete user-provided AI config without exposing the key in status", () => {
+    const env = loadEnv({
+      USER_LLM_API_KEY: "not-a-real-key",
+      USER_LLM_BASE_URL: "https://llm.example.test/v1",
+      USER_LLM_MODEL: "example-model",
+    });
+    const config = loadAiConfig({
+      USER_LLM_API_KEY: "not-a-real-key",
+      USER_LLM_BASE_URL: "https://llm.example.test/v1",
+      USER_LLM_MODEL: "example-model",
+    });
+    const status = getConfigStatus(env);
+    expect(config?.model).toBe("example-model");
+    expect(config?.provider).toBe("openai-compatible");
+    expect(JSON.stringify(status)).not.toContain("not-a-real-key");
   });
 });
