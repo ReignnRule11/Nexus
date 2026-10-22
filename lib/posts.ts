@@ -92,6 +92,7 @@ type PostRecord = {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
+  hiddenAt: Date | null;
   author: AuthorRecord;
   channel?: ChannelContext | null;
   _count: { comments: number; reactions: number };
@@ -286,12 +287,13 @@ function postInclude(viewerId?: string) {
     channel: channelContextSelect(),
     _count: {
       select: {
-        comments: {
-          where: {
-            deletedAt: null,
-            author: notDeletedAuthor(),
-          },
-        },
+         comments: {
+           where: {
+             deletedAt: null,
+             hiddenAt: null,
+             author: notDeletedAuthor(),
+           },
+         },
         reactions: true,
       },
     },
@@ -313,6 +315,7 @@ function normalizePostRecord(
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    hiddenAt: Date | null;
     author: AuthorRecord;
     channel?: ChannelContext | null;
     _count: { comments: number; reactions: number };
@@ -371,7 +374,13 @@ async function loadVisiblePost(postId: string, viewerId?: string): Promise<PostR
     include: postInclude(viewerId),
   });
 
-  if (!post || post.deletedAt || post.author.status === "DELETED" || post.author.deletedAt) {
+  if (
+    !post ||
+    post.deletedAt ||
+    post.hiddenAt ||
+    post.author.status === "DELETED" ||
+    post.author.deletedAt
+  ) {
     throw new HttpError(404, "not_found", "Post not found.");
   }
 
@@ -554,10 +563,19 @@ export async function deletePost(
   requireDatabaseConfigured();
   assertId(postId, "post id");
   const actor = await requireActiveUser(sessionToken);
-  const existing = await loadVisiblePost(postId, actor.id);
-  assertAccountOwner(actor.id, existing.authorId);
-
   const prisma = getPrismaClient();
+  const existing = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { id: true, authorId: true, deletedAt: true, hiddenAt: true },
+  });
+  if (!existing || existing.deletedAt) {
+    throw new HttpError(404, "not_found", "Post not found.");
+  }
+  if (existing.authorId !== actor.id) {
+    await loadVisiblePost(postId, actor.id);
+    assertAccountOwner(actor.id, existing.authorId);
+  }
+
   await prisma.post.update({
     where: { id: postId },
     data: { deletedAt: new Date() },
@@ -582,6 +600,7 @@ export async function getFeed(
   const rows = await prisma.post.findMany({
     where: {
       deletedAt: null,
+      hiddenAt: null,
       channelId: null,
       authorId: { in: authorIds },
       author: notDeletedAuthor(),
@@ -678,6 +697,7 @@ export async function listComments(
     where: {
       postId,
       deletedAt: null,
+      hiddenAt: null,
       author: {
         ...notDeletedAuthor(),
         ...(hidden.length > 0 ? { id: { notIn: hidden } } : {}),
@@ -719,7 +739,13 @@ export async function listComments(
 async function loadOwnComment(
   commentId: string,
   actorId: string,
-): Promise<{ id: string; authorId: string; postId: string; deletedAt: Date | null }> {
+  ): Promise<{
+    id: string;
+    authorId: string;
+    postId: string;
+    deletedAt: Date | null;
+    hiddenAt: Date | null;
+  }> {
   assertId(commentId, "comment id");
   const prisma = getPrismaClient();
   const comment = await prisma.comment.findUnique({
@@ -729,6 +755,7 @@ async function loadOwnComment(
       authorId: true,
       postId: true,
       deletedAt: true,
+      hiddenAt: true,
     },
   });
   if (!comment || comment.deletedAt) {
@@ -747,6 +774,9 @@ export async function updateComment(
   const actor = await requireActiveUser(sessionToken);
   const existing = await loadOwnComment(commentId, actor.id);
   assertAccountOwner(actor.id, existing.authorId);
+  if (existing.hiddenAt) {
+    throw new HttpError(404, "not_found", "Comment not found.");
+  }
   const body = readRequiredBody(input.body, "body");
   if (!isValidCommentBody(body)) {
     throw new HttpError(400, "invalid_input", "Invalid input.", {
@@ -923,6 +953,7 @@ export async function listChannelPosts(
     where: {
       channelId,
       deletedAt: null,
+      hiddenAt: null,
       author: {
         ...notDeletedAuthor(),
         ...(hidden.length > 0 ? { id: { notIn: hidden } } : {}),

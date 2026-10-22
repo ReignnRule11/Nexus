@@ -312,6 +312,7 @@ async function filterAccessible(
             where: {
               id: { in: postIds },
               deletedAt: null,
+              hiddenAt: null,
               author: notDeleted(),
             },
             select: { id: true },
@@ -319,7 +320,7 @@ async function filterAccessible(
         : Promise.resolve([]),
       commentIds.length > 0
         ? prisma.comment.findMany({
-            where: { id: { in: commentIds }, deletedAt: null },
+            where: { id: { in: commentIds }, deletedAt: null, hiddenAt: null },
             select: { id: true },
           })
         : Promise.resolve([]),

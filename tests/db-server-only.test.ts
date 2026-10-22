@@ -75,6 +75,7 @@ describe("server-only database module", () => {
       "ai/context.ts",
       "ai/tools.ts",
       "ai/agent.ts",
+      "moderation.ts",
     ];
 
     for (const file of files) {

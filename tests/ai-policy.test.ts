@@ -58,6 +58,7 @@ describe("AI policy", () => {
   it("documents architectural prompt-injection and privacy boundaries", () => {
     expect(AI_SYSTEM_INSTRUCTION).toContain("untrusted");
     expect(AI_SYSTEM_INSTRUCTION).toContain("Never fabricate");
+    expect(AI_SYSTEM_INSTRUCTION).toContain("file reports");
     expect(AI_SEMANTICS.authorization).toContain("not an authorization layer");
     expect(AI_SEMANTICS.privacy).toContain("emails");
     expect(AI_SEMANTICS.ranking).toContain("not ML");

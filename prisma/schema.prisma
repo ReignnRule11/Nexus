@@ -19,6 +19,7 @@ model User {
   emailNormalized String     @unique @map("email_normalized") @db.VarChar(254)
   passwordHash    String     @map("password_hash") @db.VarChar(255)
   status          UserStatus @default(ACTIVE)
+  isModerator     Boolean    @default(false) @map("is_moderator")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
   deletedAt       DateTime?  @map("deleted_at")
@@ -39,8 +40,12 @@ model User {
   communityMembers CommunityMember[]
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsActed    Notification[] @relation("NotificationActor")
+  reportsFiled          Report[]           @relation("ReportReporter")
+  reportsAssigned       Report[]           @relation("ReportAssignee")
+  moderationActions     ModerationAction[] @relation("ModerationActor")
 
   @@index([status])
+  @@index([isModerator])
   @@map("users")
 }
 
@@ -119,6 +124,7 @@ model Post {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
+  hiddenAt  DateTime? @map("hidden_at")
 
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   channel   Channel?   @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -130,6 +136,7 @@ model Post {
   @@index([createdAt, id])
   @@index([channelId, createdAt, id])
   @@index([deletedAt])
+  @@index([hiddenAt])
   @@map("posts")
 }
 
@@ -215,6 +222,7 @@ model Comment {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
+  hiddenAt  DateTime? @map("hidden_at")
 
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -222,6 +230,7 @@ model Comment {
   @@index([postId, createdAt])
   @@index([authorId, createdAt])
   @@index([deletedAt])
+  @@index([hiddenAt])
   @@map("comments")
 }
 
@@ -381,4 +390,95 @@ model Notification {
   @@index([recipientId, createdAt])
   @@index([recipientId, readAt, createdAt])
   @@map("notifications")
+}
+
+enum ReportTargetType {
+  USER
+  POST
+  COMMENT
+  MESSAGE
+  COMMUNITY
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE_OR_ABUSIVE_CONTENT
+  THREATS_OR_VIOLENCE
+  IMPERSONATION
+  SEXUAL_CONTENT
+  SCAM_OR_FRAUD
+  PRIVACY_VIOLATION
+  ILLEGAL_CONTENT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ModerationActionType {
+  CLAIM_REPORT
+  ASSIGN_REPORT
+  RESOLVE_REPORT
+  DISMISS_REPORT
+  HIDE_CONTENT
+  RESTORE_CONTENT
+  WARN_USER
+  SUSPEND_USER
+  UNSUSPEND_USER
+  VIEW_PRIVATE_MESSAGE
+}
+
+model Report {
+  id                  String           @id @default(uuid()) @db.Uuid
+  reporterId          String           @map("reporter_id") @db.Uuid
+  targetType          ReportTargetType @map("target_type")
+  targetId            String           @map("target_id") @db.Uuid
+  reason              ReportReason
+  explanation         String?          @db.VarChar(500)
+  status              ReportStatus     @default(OPEN)
+  assignedModeratorId String?          @map("assigned_moderator_id") @db.Uuid
+  resolutionNote      String?          @map("resolution_note") @db.VarChar(500)
+  activeDedupeKey     String?          @map("active_dedupe_key") @db.VarChar(80)
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  resolvedAt          DateTime?        @map("resolved_at")
+
+  reporter          User               @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  assignedModerator User?              @relation("ReportAssignee", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
+  actions           ModerationAction[]
+
+  @@unique([reporterId, activeDedupeKey])
+  @@index([status, createdAt, id])
+  @@index([targetType, targetId])
+  @@index([reporterId, createdAt])
+  @@index([assignedModeratorId])
+  @@index([reason, status])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id          String               @id @default(uuid()) @db.Uuid
+  moderatorId String               @map("moderator_id") @db.Uuid
+  actionType  ModerationActionType @map("action_type")
+  targetType  ReportTargetType     @map("target_type")
+  targetId    String               @map("target_id") @db.Uuid
+  reportId    String?              @map("report_id") @db.Uuid
+  reason      String               @db.VarChar(500)
+  outcome     String               @db.VarChar(80)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  expiresAt   DateTime?            @map("expires_at")
+
+  moderator User    @relation("ModerationActor", fields: [moderatorId], references: [id], onDelete: Restrict)
+  report    Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, id])
+  @@index([targetType, targetId, createdAt])
+  @@index([moderatorId, createdAt])
+  @@index([reportId])
+  @@map("moderation_actions")
 }

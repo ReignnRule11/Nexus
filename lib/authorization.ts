@@ -26,3 +26,13 @@ export function assertAccountOwner(
     throw new HttpError(403, "forbidden", "You cannot modify this resource.");
   }
 }
+
+export function isTrustedModerator(isModerator: boolean): boolean {
+  return isModerator === true;
+}
+
+export function assertTrustedModerator(isModerator: boolean): void {
+  if (!isTrustedModerator(isModerator)) {
+    throw new HttpError(403, "forbidden", "You cannot perform that action.");
+  }
+}

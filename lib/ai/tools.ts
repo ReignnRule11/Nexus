@@ -156,6 +156,7 @@ async function searchAccessiblePosts(
   const rows = await prisma.post.findMany({
     where: {
       deletedAt: null,
+      hiddenAt: null,
       channelId: null,
       authorId: { in: authorIds },
       author: { status: "ACTIVE", deletedAt: null },

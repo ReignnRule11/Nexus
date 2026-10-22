@@ -41,6 +41,14 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("enum CommunityRole");
     expect(schema).toContain("enum ChannelType");
     expect(schema).toContain("enum NotificationType");
+    expect(schema).toContain("model Report");
+    expect(schema).toContain("model ModerationAction");
+    expect(schema).toContain("enum ReportTargetType");
+    expect(schema).toContain("enum ReportReason");
+    expect(schema).toContain("enum ReportStatus");
+    expect(schema).toContain("enum ModerationActionType");
+    expect(schema).toContain("isModerator");
+    expect(schema).toContain("hiddenAt");
     expect(schema).not.toContain("sqlite");
   });
 
@@ -322,6 +330,47 @@ describe("Prisma notifications migration", () => {
     expect(notificationsBlock).not.toContain("password");
     expect(notificationsBlock).not.toContain("email");
     expect(notificationsBlock).not.toContain("token");
+  });
+});
+
+describe("Prisma moderation migration", () => {
+  const moderationSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261020120000_add_moderation",
+    "migration.sql",
+  );
+
+  it("creates reports and moderation_actions with role and hide columns", () => {
+    expect(existsSync(moderationSqlPath)).toBe(true);
+    const sql = readFileSync(moderationSqlPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "reports"');
+    expect(sql).toContain('CREATE TABLE "moderation_actions"');
+    expect(sql).toContain(
+      'CREATE TYPE "ReportTargetType" AS ENUM (\'USER\', \'POST\', \'COMMENT\', \'MESSAGE\', \'COMMUNITY\')',
+    );
+    expect(sql).toContain(
+      'CREATE TYPE "ReportStatus" AS ENUM (\'OPEN\', \'UNDER_REVIEW\', \'RESOLVED\', \'DISMISSED\')',
+    );
+    expect(sql).toContain('ALTER TABLE "users" ADD COLUMN "is_moderator" BOOLEAN NOT NULL DEFAULT false');
+    expect(sql).toContain('ALTER TABLE "posts" ADD COLUMN "hidden_at" TIMESTAMP(3)');
+    expect(sql).toContain('ALTER TABLE "comments" ADD COLUMN "hidden_at" TIMESTAMP(3)');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "reports_reporter_id_active_dedupe_key_key"',
+    );
+    expect(sql).toContain("ON DELETE RESTRICT");
+    expect(sql).not.toContain("ON DELETE CASCADE");
+  });
+
+  it("does not store private message bodies on reports or audit rows", () => {
+    const schema = readFileSync(schemaPath, "utf8");
+    const reportsBlock = schema.slice(schema.indexOf("model Report"));
+    expect(reportsBlock).not.toContain("password");
+    expect(reportsBlock).not.toContain("email");
+    expect(reportsBlock).not.toContain("token");
+    expect(reportsBlock).not.toMatch(/body\s+String/);
   });
 });
 
