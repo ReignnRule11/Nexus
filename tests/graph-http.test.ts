@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { POST as follow } from "@/app/api/users/[id]/follow/route";
 import { POST as block } from "@/app/api/users/[id]/block/route";
 import { GET as search } from "@/app/api/users/search/route";
+import { GET as publicProfile } from "@/app/api/users/[id]/route";
 import { toErrorBody } from "@/lib/http-error";
 
 describe("graph routes without PostgreSQL", () => {
@@ -46,5 +47,6 @@ describe("graph routes without PostgreSQL", () => {
     expect(typeof follow).toBe("function");
     expect(typeof block).toBe("function");
     expect(typeof search).toBe("function");
+    expect(typeof publicProfile).toBe("function");
   });
 });

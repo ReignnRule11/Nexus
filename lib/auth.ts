@@ -43,6 +43,7 @@ export type PublicUser = {
   id: string;
   email: string;
   status: UserStatus;
+  isModerator: boolean;
   createdAt: Date;
   updatedAt: Date;
   profile: PublicProfile;
@@ -81,6 +82,7 @@ type UserWithProfile = {
   id: string;
   email: string;
   status: UserStatus;
+  isModerator: boolean;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -118,6 +120,7 @@ export function toPublicUser(user: UserWithProfile): PublicUser {
     id: user.id,
     email: user.email,
     status: user.status,
+    isModerator: user.isModerator === true,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     profile: toPublicProfile(user.profile),
@@ -421,6 +424,7 @@ export function serializePublicUser(user: PublicUser) {
     id: user.id,
     email: user.email,
     status: user.status,
+    isModerator: user.isModerator === true,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
     profile: serializePublicProfile(user.profile),

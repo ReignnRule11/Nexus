@@ -6,16 +6,16 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, and a minimal moderation and reporting workflow.
+This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, a minimal moderation and reporting workflow, and a mobile-first product UI with application navigation.
 
 The following are **not implemented**:
 
-- product UI beyond the landing page
 - a full AI chat interface
 - autonomous AI actions
 - enterprise trust-and-safety tooling
 - search engine
 - ranking or recommendation
+- realtime updates
 
 Do not treat this repository as a working product.
 
@@ -44,7 +44,7 @@ Future domain modules (identity behavior, social graph, content, messaging, comm
 - ESLint
 - Vitest
 - Playwright
-- Tailwind CSS (styling only; no product UI yet)
+- Tailwind CSS (styling only)
 
 ## Prerequisites
 
@@ -159,4 +159,4 @@ npm run db:migrate
 
 ## Current MVP status
 
-Phase 12 adds user reporting, a moderator-only review queue, auditable decisions, and limited reversible enforcement (hide/restore content, warn, suspend/unsuspend). Moderators are provisioned out-of-band with `UPDATE users SET is_moderator = true WHERE id = '<uuid>';`. The AI Social Agent cannot file reports or execute enforcement. Project Nexus is not production-ready.
+Phase 13 adds a production-oriented mobile-first UI on the existing APIs: authentication screens, chronological feed, discovery, communities, messaging, notifications, profile, one-shot AI agent request UI, reporter status, and a moderator queue. Navigation is bottom-tab on small screens and a side rail from 48rem. Moderator links are shown only when `/api/auth/me` reports `isModerator`; hiding a link is not authorization. Playwright browsers are not assumed. Project Nexus is not production-ready.

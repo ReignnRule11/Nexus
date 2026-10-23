@@ -2,7 +2,7 @@ import "server-only";
 
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { UserStatus } from "@/lib/generated/prisma/client";
-import { requireActiveUser } from "@/lib/auth";
+import { getCurrentUser, requireActiveUser } from "@/lib/auth";
 import { getPrismaClient } from "@/lib/db";
 import { loadEnv } from "@/lib/env";
 import { HttpError } from "@/lib/http-error";
@@ -390,6 +390,49 @@ export async function unblockUser(
   });
 
   return getRelationshipState(actor.id, targetId);
+}
+
+export async function getPublicProfileView(
+  sessionToken: string | undefined,
+  targetId: string,
+): Promise<{
+  profile: PublicGraphProfile;
+  relationship: RelationshipState | null;
+  counts: GraphCounts | null;
+}> {
+  requireDatabaseConfigured();
+  assertUserId(targetId);
+  const target = await loadTargetUser(targetId);
+  assertTargetExists(target);
+  if (!target.profile) {
+    throw new HttpError(404, "not_found", "User not found.");
+  }
+
+  const profile = toPublicGraphProfile(target.profile);
+  const viewer = await getCurrentUser(sessionToken);
+  if (!viewer) {
+    return {
+      profile,
+      relationship: null,
+      counts: await getGraphCounts(undefined, targetId),
+    };
+  }
+
+  const blocks = await loadBlockPair(viewer.id, targetId);
+  if (blocks.blockedBy) {
+    throw new HttpError(404, "not_found", "User not found.");
+  }
+
+  const relationship = await getRelationshipState(viewer.id, targetId);
+  if (blocks.blocked) {
+    return { profile, relationship, counts: null };
+  }
+
+  return {
+    profile,
+    relationship,
+    counts: await getGraphCounts(viewer.id, targetId),
+  };
 }
 
 export async function getRelationshipView(
