@@ -7,7 +7,7 @@ import { HttpError } from "@/lib/http-error";
 export { CSRF_COOKIE_NAME, CSRF_HEADER_NAME };
 
 export const CSRF_STRATEGY =
-  "Synchronizer token: HMAC-signed CSRF cookie compared to the x-csrf-token header, plus same-origin checks. AUTH_SECRET signs tokens. This is not a substitute for SameSite cookies.";
+  "Synchronizer token: HMAC-signed CSRF cookie compared to the x-csrf-token header, plus fail-closed same-origin checks that require a matching Origin. AUTH_SECRET signs tokens. This is not a substitute for SameSite cookies.";
 
 export function createCsrfToken(secret: string): string {
   const nonce = randomBytes(32).toString("base64url");
@@ -41,7 +41,7 @@ export function readCsrfHeader(request: Request): string | undefined {
 export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
   if (!origin) {
-    return;
+    throw new HttpError(403, "csrf", "Request rejected.");
   }
 
   let requestOrigin: string;

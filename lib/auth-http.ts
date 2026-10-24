@@ -4,6 +4,7 @@ import { requireAuthSecret } from "@/lib/env";
 import { applySetCookies, getCookie, isSecureCookieEnvironment, serializeCookie } from "@/lib/cookie";
 import { assertCsrf, assertSameOrigin, readCsrfHeader } from "@/lib/csrf";
 import { HttpError, toErrorBody } from "@/lib/http-error";
+import { applySecurityHeaders } from "@/lib/security-headers";
 import type { IssuedSession } from "@/lib/auth";
 import {
   CSRF_COOKIE_NAME,
@@ -28,8 +29,11 @@ export function protectMutation(request: Request): void {
   assertCsrf(requireAuthSecret(), readCsrfCookie(request), readCsrfHeader(request));
 }
 
+export const MAX_JSON_BODY_BYTES = 64 * 1024;
+
 export function jsonResponse(body: unknown, status = 200, cookies: string[] = []): Response {
   const headers = new Headers({ "content-type": "application/json" });
+  applySecurityHeaders(headers);
   applySetCookies(headers, cookies);
   return new Response(JSON.stringify(body), { status, headers });
 }
@@ -77,9 +81,22 @@ export async function readJsonObject(request: Request): Promise<Record<string, u
     throw new HttpError(415, "unsupported_media_type", "JSON body required.");
   }
 
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength) {
+    const parsedLength = Number(declaredLength);
+    if (Number.isFinite(parsedLength) && parsedLength > MAX_JSON_BODY_BYTES) {
+      throw new HttpError(413, "payload_too_large", "Request is too large.");
+    }
+  }
+
+  const raw = await request.text();
+  if (Buffer.byteLength(raw, "utf8") > MAX_JSON_BODY_BYTES) {
+    throw new HttpError(413, "payload_too_large", "Request is too large.");
+  }
+
   let parsed: unknown;
   try {
-    parsed = await request.json();
+    parsed = JSON.parse(raw) as unknown;
   } catch {
     throw new HttpError(400, "invalid_json", "Request body must be valid JSON.");
   }

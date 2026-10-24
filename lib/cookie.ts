@@ -20,7 +20,7 @@ export function getCookie(
 
     const key = trimmed.slice(0, separator);
     if (key === name) {
-      return trimmed.slice(separator + 1);
+      return decodeCookieValue(trimmed.slice(separator + 1));
     }
   }
 
@@ -33,7 +33,7 @@ export function serializeCookie(
   options: CookieOptions,
 ): string {
   const segments = [
-    `${name}=${value}`,
+    `${name}=${encodeURIComponent(value)}`,
     `Path=${options.path}`,
     `Max-Age=${options.maxAge}`,
     "SameSite=Lax",
@@ -62,4 +62,12 @@ export function isSecureCookieEnvironment(
   nodeEnv: string | undefined = process.env.NODE_ENV,
 ): boolean {
   return nodeEnv === "production";
+}
+
+function decodeCookieValue(value: string): string | undefined {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
 }

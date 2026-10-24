@@ -5,6 +5,7 @@ import { POST as login } from "@/app/api/auth/login/route";
 import { POST as logout } from "@/app/api/auth/logout/route";
 import { GET as me } from "@/app/api/auth/me/route";
 import { GET as getProfile, PATCH as patchProfile } from "@/app/api/profile/route";
+import { MAX_JSON_BODY_BYTES, readJsonObject } from "@/lib/auth-http";
 import { requireAuthSecret } from "@/lib/env";
 import { toErrorBody } from "@/lib/http-error";
 import { AUTH_ABUSE_PROTECTION_MODE, AUTH_ABUSE_PROTECTION_NOTE } from "@/lib/auth-abuse";
@@ -73,6 +74,19 @@ describe("authentication without PostgreSQL", () => {
   it("does not claim distributed rate limiting", () => {
     expect(AUTH_ABUSE_PROTECTION_MODE).toBe("disabled");
     expect(AUTH_ABUSE_PROTECTION_NOTE).toMatch(/production rate limiting/i);
+  });
+
+  it("rejects oversized JSON bodies", async () => {
+    const request = new Request("http://localhost/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: `{"pad":"${"a".repeat(MAX_JSON_BODY_BYTES)}"}`,
+    });
+
+    await expect(readJsonObject(request)).rejects.toMatchObject({
+      status: 413,
+      code: "payload_too_large",
+    });
   });
 });
 

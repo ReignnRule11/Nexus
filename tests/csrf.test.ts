@@ -47,6 +47,14 @@ describe("csrf protection", () => {
     expect(() => assertSameOrigin(request)).not.toThrow();
   });
 
+  it("rejects state-changing requests without an Origin header", () => {
+    const request = new Request("http://localhost:3000/api/auth/login", {
+      method: "POST",
+    });
+
+    expect(() => assertSameOrigin(request)).toThrow(HttpError);
+  });
+
   it("documents the synchronizer-token CSRF strategy", () => {
     expect(CSRF_STRATEGY).toMatch(/HMAC-signed CSRF cookie/);
     expect(CSRF_STRATEGY).toMatch(/x-csrf-token/);

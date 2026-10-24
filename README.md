@@ -6,7 +6,7 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, a minimal moderation and reporting workflow, and a mobile-first product UI with application navigation.
+This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, a minimal moderation and reporting workflow, a mobile-first product UI with application navigation, and a Phase 14 security audit with remediations.
 
 The following are **not implemented**:
 
@@ -159,4 +159,4 @@ npm run db:migrate
 
 ## Current MVP status
 
-Phase 13 adds a production-oriented mobile-first UI on the existing APIs: authentication screens, chronological feed, discovery, communities, messaging, notifications, profile, one-shot AI agent request UI, reporter status, and a moderator queue. Navigation is bottom-tab on small screens and a side rail from 48rem. Moderator links are shown only when `/api/auth/me` reports `isModerator`; hiding a link is not authorization. Playwright browsers are not assumed. Project Nexus is not production-ready.
+Phase 14 audited and hardened Phases 02-13: fail-closed CSRF origin checks, JSON body size limits, cookie encoding, HTTP security headers, and media authorization for private-channel and hidden posts. Abuse limiters remain disabled interfaces. Playwright browsers are not assumed. Project Nexus is not production-ready.

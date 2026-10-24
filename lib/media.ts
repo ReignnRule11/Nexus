@@ -384,8 +384,24 @@ export async function getMediaAccess(
             select: {
               id: true,
               authorId: true,
+              channelId: true,
               deletedAt: true,
+              hiddenAt: true,
               author: { select: { status: true, deletedAt: true } },
+              channel: {
+                select: {
+                  id: true,
+                  deletedAt: true,
+                  community: {
+                    select: {
+                      id: true,
+                      ownerId: true,
+                      visibility: true,
+                      deletedAt: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -427,10 +443,37 @@ export async function getMediaAccess(
     const post = media.postMedia.post;
     if (
       post.deletedAt ||
+      post.hiddenAt ||
       post.author.status === "DELETED" ||
       post.author.deletedAt
     ) {
       throw new HttpError(404, "not_found", "Media not found.");
+    }
+    if (post.channelId) {
+      const channel = post.channel;
+      if (!channel || channel.deletedAt || channel.community.deletedAt) {
+        throw new HttpError(404, "not_found", "Media not found.");
+      }
+      if (
+        viewer.id !== channel.community.ownerId &&
+        hidden.includes(channel.community.ownerId)
+      ) {
+        throw new HttpError(404, "not_found", "Media not found.");
+      }
+      if (channel.community.visibility === "PRIVATE") {
+        const member = await prisma.communityMember.findUnique({
+          where: {
+            communityId_userId: {
+              communityId: channel.community.id,
+              userId: viewer.id,
+            },
+          },
+          select: { leftAt: true },
+        });
+        if (!member || member.leftAt) {
+          throw new HttpError(404, "not_found", "Media not found.");
+        }
+      }
     }
   } else if (media.messageMedia) {
     const message = media.messageMedia.message;

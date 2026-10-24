@@ -10,6 +10,8 @@ import {
   GET as getMedia,
 } from "@/app/api/media/[id]/route";
 import { POST as completeMedia } from "@/app/api/media/[id]/complete/route";
+import { POST as createCommunity } from "@/app/api/communities/route";
+import { POST as createChannelPost } from "@/app/api/channels/[id]/posts/route";
 import { getPrismaClient } from "@/lib/db";
 import { loadEnv } from "@/lib/env";
 import { mediaLimits } from "@/lib/media-policy";
@@ -520,5 +522,50 @@ describe.skipIf(!canRunIntegration)("media PostgreSQL integration", () => {
       routeContext(media.id),
     );
     expect(again.status).toBe(404);
+  });
+
+  it("does not issue downloads for private-channel media to non-members", async () => {
+    const owner = await registerAccount();
+    const outsider = await registerAccount();
+    const media = await uploadAvailable(owner.cookies);
+    const communityResponse = await createCommunity(
+      await mutate(owner.cookies, "/api/communities", "POST", {
+        name: "Private Guild",
+        visibility: "PRIVATE",
+      }),
+    );
+    const community = (await communityResponse.json()) as {
+      community: { id: string };
+    };
+    expect(communityResponse.status).toBe(201);
+    const channel = await prisma.channel.findFirstOrThrow({
+      where: { communityId: community.community.id },
+    });
+    const posted = await createChannelPost(
+      await mutate(owner.cookies, `/api/channels/${channel.id}/posts`, "POST", {
+        body: "members only",
+        mediaIds: [media.id],
+      }),
+      routeContext(channel.id),
+    );
+    expect(posted.status).toBe(201);
+
+    const outsiderAccess = await getMedia(
+      requestFor(`/api/media/${media.id}`, {
+        method: "GET",
+        cookies: outsider.cookies,
+      }),
+      routeContext(media.id),
+    );
+    expect(outsiderAccess.status).toBe(404);
+
+    const ownerAccess = await getMedia(
+      requestFor(`/api/media/${media.id}`, {
+        method: "GET",
+        cookies: owner.cookies,
+      }),
+      routeContext(media.id),
+    );
+    expect(ownerAccess.status).toBe(200);
   });
 });
