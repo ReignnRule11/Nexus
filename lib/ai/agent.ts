@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createDisabledAiAbuseLimiter } from "@/lib/ai-abuse";
+import { assertAiAbuseLimit } from "@/lib/ai-abuse";
 import { requireActiveUser } from "@/lib/auth";
 import { HttpError } from "@/lib/http-error";
 import {
@@ -31,8 +31,6 @@ import {
   type ToolExecution,
 } from "@/lib/ai/tools";
 
-const aiAbuseLimiter = createDisabledAiAbuseLimiter();
-
 function assertRequestSize(rawBody: string): void {
   const bytes = Buffer.byteLength(rawBody, "utf8");
   if (bytes > AI_AGENT_LIMITS.maxRequestBytes) {
@@ -61,7 +59,7 @@ export async function runSocialAgent(
   }
   const request = parseAgentRequest(body);
   const actor = await requireActiveUser(sessionToken);
-  aiAbuseLimiter.check(`ai:${actor.id}`);
+  await assertAiAbuseLimit(actor.id);
   const ai = provider ?? getAiProvider();
 
   const { context, evidence } = await loadViewerContext(sessionToken);

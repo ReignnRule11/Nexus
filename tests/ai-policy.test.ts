@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AI_ABUSE_PROTECTION_MODE,
   AI_ABUSE_PROTECTION_NOTE,
-  createDisabledAiAbuseLimiter,
+  AI_RATE_LIMITS,
 } from "@/lib/ai-abuse";
 import {
   AI_ACTION_TYPES,
@@ -75,12 +75,12 @@ describe("AI policy", () => {
     expect(isUuid("not-a-uuid")).toBe(false);
   });
 
-  it("does not claim production AI rate limiting", () => {
-    expect(AI_ABUSE_PROTECTION_MODE).toBe("disabled");
-    expect(AI_ABUSE_PROTECTION_NOTE).toMatch(/production rate limiting/i);
-    expect(createDisabledAiAbuseLimiter().check("ai:user")).toEqual({
-      allowed: true,
-    });
+  it("documents PostgreSQL AI rate limiting", () => {
+    expect(AI_ABUSE_PROTECTION_MODE).toBe("postgres");
+    expect(AI_ABUSE_PROTECTION_NOTE).toMatch(/PostgreSQL fixed-window limiter/i);
+    expect(AI_ABUSE_PROTECTION_NOTE).toMatch(/fails closed/i);
+    expect(AI_RATE_LIMITS.agent.limit).toBeGreaterThan(0);
+    expect(AI_RATE_LIMITS.agent.windowMs).toBe(60 * 60 * 1000);
   });
 });
 

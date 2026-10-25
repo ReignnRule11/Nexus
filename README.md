@@ -6,7 +6,7 @@ Project Nexus is a social coordination platform. The intended product combines i
 
 ## Current development status
 
-This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, a minimal moderation and reporting workflow, a mobile-first product UI with application navigation, and a Phase 14 security audit with remediations.
+This repository contains the application scaffold, identity, authentication, social graph, chronological content APIs, private media storage, messaging, communities, notifications, a server-side AI Social Agent API, a minimal moderation and reporting workflow, a mobile-first product UI with application navigation, Phase 14 security remediations, PostgreSQL abuse rate limiting, and GitHub Actions CI.
 
 The following are **not implemented**:
 
@@ -84,8 +84,12 @@ cp .env.example .env.local
 - `USER_LLM_PROVIDER`
 - `USER_LLM_TIMEOUT_MS`
 - `USER_LLM_MAX_OUTPUT_TOKENS`
+- `TRUST_PROXY`
+- `TRUSTED_PROXY_HOPS`
 
 Leave these empty until a later phase requires them. Do not invent credentials. Do not copy keys from the agent runtime or any other environment.
+
+Production abuse protection requires `TRUST_PROXY=true` and `TRUSTED_PROXY_HOPS` set to the number of trusted reverse-proxy hops. The client IP is taken from that hop in `X-Forwarded-For`, not the leftmost spoofed address. Production fails closed if those values are missing. A process-local limiter is never used as a production fallback.
 
 When a PostgreSQL instance is available, set `DATABASE_URL` to that instance and apply migrations:
 
@@ -156,7 +160,8 @@ npm run db:migrate
 - Prisma Client and `DATABASE_URL` are server-only.
 - Session rows store `token_hash`, not plaintext session secrets.
 - LLM keys, if used later, must be supplied by the project operator as `USER_LLM_*` values. Do not reuse platform or agent keys.
+- Register, login, AI-agent, and report-creation requests are rate-limited with a PostgreSQL fixed-window limiter. Subjects are HMAC-hashed. Exceeded budgets return HTTP 429 with `Retry-After`. Backend outages fail closed with HTTP 503.
 
 ## Current MVP status
 
-Phase 14 audited and hardened Phases 02-13: fail-closed CSRF origin checks, JSON body size limits, cookie encoding, HTTP security headers, and media authorization for private-channel and hidden posts. Abuse limiters remain disabled interfaces. Playwright browsers are not assumed. Project Nexus is not production-ready.
+Phase 15 added PostgreSQL abuse rate limiting and GitHub Actions CI on top of Phase 14 CSRF, body limits, cookie encoding, security headers, and media authorization. Remaining Vitest/tinypool advisories are development-only and unfixed. Playwright browsers are not assumed outside CI. Project Nexus is not production-ready.

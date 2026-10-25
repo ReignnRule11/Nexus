@@ -71,9 +71,10 @@ describe("authentication without PostgreSQL", () => {
     expect(JSON.stringify(mapped.body)).not.toContain("AUTH_SECRET");
   });
 
-  it("does not claim distributed rate limiting", () => {
-    expect(AUTH_ABUSE_PROTECTION_MODE).toBe("disabled");
-    expect(AUTH_ABUSE_PROTECTION_NOTE).toMatch(/production rate limiting/i);
+  it("documents PostgreSQL authentication rate limiting", () => {
+    expect(AUTH_ABUSE_PROTECTION_MODE).toBe("postgres");
+    expect(AUTH_ABUSE_PROTECTION_NOTE).toMatch(/PostgreSQL fixed-window limiter/i);
+    expect(AUTH_ABUSE_PROTECTION_NOTE).toMatch(/fails closed/i);
   });
 
   it("rejects oversized JSON bodies", async () => {

@@ -24,6 +24,8 @@ describe("environment configuration", () => {
     expect(env.userLlmProvider).toBeUndefined();
     expect(env.userLlmTimeoutMs).toBeUndefined();
     expect(env.userLlmMaxOutputTokens).toBeUndefined();
+    expect(env.trustProxy).toBeUndefined();
+    expect(env.trustedProxyHops).toBeUndefined();
     expect(env.storageDriver).toBeUndefined();
     expect(env.s3AccessKeyId).toBeUndefined();
     expect(env.s3SecretAccessKey).toBeUndefined();
@@ -55,6 +57,8 @@ describe("environment configuration", () => {
       expect.arrayContaining([
         { name: "DATABASE_URL", configured: true },
         { name: "AUTH_SECRET", configured: true },
+        { name: "TRUST_PROXY", configured: false },
+        { name: "TRUSTED_PROXY_HOPS", configured: false },
         { name: "STORAGE_DRIVER", configured: false },
         { name: "S3_SECRET_ACCESS_KEY", configured: false },
       ]),
@@ -79,6 +83,15 @@ describe("environment configuration", () => {
       "S3_SECRET_ACCESS_KEY",
       "USER_LLM_API_KEY",
     ]);
+  });
+
+  it("parses trusted proxy configuration without accepting invalid values", () => {
+    expect(loadEnv({ TRUST_PROXY: "true", TRUSTED_PROXY_HOPS: "1" })).toMatchObject({
+      trustProxy: true,
+      trustedProxyHops: 1,
+    });
+    expect(() => loadEnv({ TRUST_PROXY: "yes" })).toThrow(/TRUST_PROXY/);
+    expect(() => loadEnv({ TRUSTED_PROXY_HOPS: "0" })).toThrow(/TRUSTED_PROXY_HOPS/);
   });
 
   it("fails closed when AUTH_SECRET is absent", () => {

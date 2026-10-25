@@ -3,7 +3,7 @@ import "server-only";
 import { requireAuthSecret } from "@/lib/env";
 import { applySetCookies, getCookie, isSecureCookieEnvironment, serializeCookie } from "@/lib/cookie";
 import { assertCsrf, assertSameOrigin, readCsrfHeader } from "@/lib/csrf";
-import { HttpError, toErrorBody } from "@/lib/http-error";
+import { HttpError, isHttpError, toErrorBody } from "@/lib/http-error";
 import { applySecurityHeaders } from "@/lib/security-headers";
 import type { IssuedSession } from "@/lib/auth";
 import {
@@ -31,16 +31,28 @@ export function protectMutation(request: Request): void {
 
 export const MAX_JSON_BODY_BYTES = 64 * 1024;
 
-export function jsonResponse(body: unknown, status = 200, cookies: string[] = []): Response {
+export function jsonResponse(
+  body: unknown,
+  status = 200,
+  cookies: string[] = [],
+  extraHeaders: Record<string, string> = {},
+): Response {
   const headers = new Headers({ "content-type": "application/json" });
   applySecurityHeaders(headers);
+  for (const [key, value] of Object.entries(extraHeaders)) {
+    headers.set(key, value);
+  }
   applySetCookies(headers, cookies);
   return new Response(JSON.stringify(body), { status, headers });
 }
 
 export function errorResponse(error: unknown): Response {
   const mapped = toErrorBody(error);
-  return jsonResponse(mapped.body, mapped.status);
+  const extraHeaders: Record<string, string> = {};
+  if (isHttpError(error) && error.retryAfterSeconds !== undefined) {
+    extraHeaders["Retry-After"] = String(error.retryAfterSeconds);
+  }
+  return jsonResponse(mapped.body, mapped.status, [], extraHeaders);
 }
 
 export function sessionCookies(session: IssuedSession): string[] {

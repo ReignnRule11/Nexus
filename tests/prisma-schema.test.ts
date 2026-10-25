@@ -43,6 +43,7 @@ describe("Prisma identity schema", () => {
     expect(schema).toContain("enum NotificationType");
     expect(schema).toContain("model Report");
     expect(schema).toContain("model ModerationAction");
+    expect(schema).toContain("model RateLimitBucket");
     expect(schema).toContain("enum ReportTargetType");
     expect(schema).toContain("enum ReportReason");
     expect(schema).toContain("enum ReportStatus");
@@ -371,6 +372,31 @@ describe("Prisma moderation migration", () => {
     expect(reportsBlock).not.toContain("email");
     expect(reportsBlock).not.toContain("token");
     expect(reportsBlock).not.toMatch(/body\s+String/);
+  });
+});
+
+describe("Prisma rate limit migration", () => {
+  const rateLimitSqlPath = path.join(
+    ROOT,
+    "prisma",
+    "migrations",
+    "20261025120000_add_rate_limit_buckets",
+    "migration.sql",
+  );
+
+  it("creates atomic rate limit buckets without storing client identifiers", () => {
+    expect(existsSync(rateLimitSqlPath)).toBe(true);
+    const sql = readFileSync(rateLimitSqlPath, "utf8");
+    const schema = readFileSync(schemaPath, "utf8");
+
+    expect(sql).toContain('CREATE TABLE "rate_limit_buckets"');
+    expect(sql).toContain(
+      'CREATE UNIQUE INDEX "rate_limit_buckets_scope_subject_hash_window_start_key"',
+    );
+    expect(sql).toContain('CREATE INDEX "rate_limit_buckets_window_start_idx"');
+    expect(schema).toContain("subjectHash");
+    expect(schema).not.toMatch(/clientIp\s+/);
+    expect(schema).not.toMatch(/ipAddress\s+/);
   });
 });
 

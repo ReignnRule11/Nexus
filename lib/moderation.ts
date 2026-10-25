@@ -8,7 +8,7 @@ import { unicodeLength } from "@/lib/content";
 import { getPrismaClient } from "@/lib/db";
 import { loadEnv } from "@/lib/env";
 import { HttpError } from "@/lib/http-error";
-import { createDisabledModerationAbuseLimiter } from "@/lib/moderation-abuse";
+import { assertModerationAbuseLimit } from "@/lib/moderation-abuse";
 import {
   isEnforcementActionType,
   isReportReason,
@@ -31,8 +31,6 @@ import { getPost } from "@/lib/posts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const moderationAbuseLimiter = createDisabledModerationAbuseLimiter();
 
 type ReportRow = {
   id: string;
@@ -722,7 +720,7 @@ export async function createReport(
 ): Promise<PublicReporterReport> {
   requireDatabaseConfigured();
   const actor = await requireActiveUser(sessionToken);
-  moderationAbuseLimiter.check(`report:${actor.id}`);
+  await assertModerationAbuseLimit(actor.id);
   if (!isReportTargetType(input.targetType)) {
     throw new HttpError(400, "invalid_input", "Invalid input.", {
       targetType: "A supported targetType is required.",

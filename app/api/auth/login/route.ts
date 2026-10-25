@@ -7,6 +7,7 @@ import {
   readSessionToken,
   sessionCookies,
 } from "@/lib/auth-http";
+import { resolveClientIdentity } from "@/lib/client-identity";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
         password: body.password,
       },
       readSessionToken(request),
+      resolveClientIdentity(request),
     );
 
     return jsonResponse(

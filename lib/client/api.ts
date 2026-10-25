@@ -43,6 +43,9 @@ export function userMessageForError(error: unknown): string {
     if (error.code === "network") {
       return "Network request failed. Try again.";
     }
+    if (error.code === "rate_limited") {
+      return "Too many requests. Try again later.";
+    }
     return error.message;
   }
   if (error instanceof Error && error.name === "AbortError") {

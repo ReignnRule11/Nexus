@@ -2,7 +2,8 @@ import "server-only";
 
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { UserStatus } from "@/lib/generated/prisma/client";
-import { createDisabledAuthAbuseLimiter } from "@/lib/auth-abuse";
+import { assertAuthAbuseLimit } from "@/lib/auth-abuse";
+import type { ClientIdentity } from "@/lib/client-identity";
 import { assertAccountOwner } from "@/lib/authorization";
 import { getPrismaClient } from "@/lib/db";
 import { loadEnv, requireAuthSecret } from "@/lib/env";
@@ -26,8 +27,6 @@ import {
   hashSessionToken,
   sessionExpiryDate,
 } from "@/lib/session";
-
-const authAbuseLimiter = createDisabledAuthAbuseLimiter();
 
 export type PublicProfile = {
   id: string;
@@ -130,9 +129,13 @@ export function toPublicUser(user: UserWithProfile): PublicUser {
 export async function registerUser(
   input: RegisterInput,
   previousSessionToken?: string,
+  client?: ClientIdentity,
 ): Promise<AuthResult> {
-  authAbuseLimiter.check("register");
   requireAuthSecret();
+  if (!client) {
+    throw new HttpError(503, "not_configured", "Client identity is unavailable.");
+  }
+  await assertAuthAbuseLimit("register", client);
   requireDatabaseConfigured();
 
   const email = readRequiredString(input.email, "email");
@@ -198,9 +201,13 @@ export async function registerUser(
 export async function loginUser(
   input: LoginInput,
   previousSessionToken?: string,
+  client?: ClientIdentity,
 ): Promise<AuthResult> {
-  authAbuseLimiter.check("login");
   requireAuthSecret();
+  if (!client) {
+    throw new HttpError(503, "not_configured", "Client identity is unavailable.");
+  }
+  await assertAuthAbuseLimit("login", client);
   requireDatabaseConfigured();
 
   const email = readRequiredString(input.email, "email");
