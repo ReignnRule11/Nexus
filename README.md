@@ -1,5 +1,9 @@
 # Project Nexus
 
+
+[![CI](https://github.com/ReignnRule11/Nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/ReignnRule11/Nexus/actions/workflows/ci.yml)
+
+
 Connect with purpose.
 
 Project Nexus is a social coordination platform. The intended product combines identity, social discovery, messaging, communities, content, and an AI social agent. The initial audience is technology builders and communities.
