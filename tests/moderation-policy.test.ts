@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MODERATION_ABUSE_PROTECTION_MODE,
   MODERATION_ABUSE_PROTECTION_NOTE,
-  createDisabledModerationAbuseLimiter,
+  MODERATION_RATE_LIMITS,
 } from "@/lib/moderation-abuse";
 import {
   MODERATION_SEMANTICS,
@@ -78,11 +78,11 @@ describe("moderation policy", () => {
     expect(MODERATION_SEMANTICS.ai).toContain("cannot file reports");
   });
 
-  it("does not claim production report rate limiting", () => {
-    expect(MODERATION_ABUSE_PROTECTION_MODE).toBe("disabled");
-    expect(MODERATION_ABUSE_PROTECTION_NOTE).toMatch(/production rate limiting/i);
-    expect(createDisabledModerationAbuseLimiter().check("report:user")).toEqual({
-      allowed: true,
-    });
+  it("documents PostgreSQL report rate limiting", () => {
+    expect(MODERATION_ABUSE_PROTECTION_MODE).toBe("postgres");
+    expect(MODERATION_ABUSE_PROTECTION_NOTE).toMatch(/PostgreSQL fixed-window limiter/i);
+    expect(MODERATION_ABUSE_PROTECTION_NOTE).toMatch(/fails closed/i);
+    expect(MODERATION_RATE_LIMITS.report.limit).toBeGreaterThan(0);
+    expect(MODERATION_RATE_LIMITS.report.windowMs).toBe(60 * 60 * 1000);
   });
 });

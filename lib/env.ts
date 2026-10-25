@@ -8,6 +8,8 @@ export type Env = {
   nodeEnv: NodeEnv;
   databaseUrl: string | undefined;
   authSecret: string | undefined;
+  trustProxy: boolean | undefined;
+  trustedProxyHops: number | undefined;
   storageDriver: string | undefined;
   s3Bucket: string | undefined;
   s3Region: string | undefined;
@@ -58,11 +60,43 @@ function readFrom(source: EnvSource, name: string): string | undefined {
   return value;
 }
 
+function parseTrustProxy(source: EnvSource): boolean | undefined {
+  const raw = readFrom(source, "TRUST_PROXY");
+  if (!raw) {
+    return undefined;
+  }
+  if (raw === "true") {
+    return true;
+  }
+  if (raw === "false") {
+    return false;
+  }
+  throw new Error(
+    "Missing required configuration: TRUST_PROXY. Set true only when a trusted reverse proxy supplies X-Forwarded-For. Do not use fake credentials.",
+  );
+}
+
+function parseTrustedProxyHops(source: EnvSource): number | undefined {
+  const raw = readFrom(source, "TRUSTED_PROXY_HOPS");
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 16) {
+    throw new Error(
+      "Missing required configuration: TRUSTED_PROXY_HOPS. Set a value between 1 and 16. Do not use fake credentials.",
+    );
+  }
+  return parsed;
+}
+
 export function loadEnv(source: EnvSource = process.env): Env {
   return {
     nodeEnv: resolveNodeEnvFrom(source),
     databaseUrl: readFrom(source, "DATABASE_URL"),
     authSecret: readFrom(source, "AUTH_SECRET"),
+    trustProxy: parseTrustProxy(source),
+    trustedProxyHops: parseTrustedProxyHops(source),
     storageDriver: readFrom(source, "STORAGE_DRIVER"),
     s3Bucket: readFrom(source, "S3_BUCKET"),
     s3Region: readFrom(source, "S3_REGION"),
@@ -83,6 +117,11 @@ export function getConfigStatus(env: Env = loadEnv()): ConfigStatus {
     requiredWhenUsed: [
       { name: "DATABASE_URL", configured: Boolean(env.databaseUrl) },
       { name: "AUTH_SECRET", configured: Boolean(env.authSecret) },
+      { name: "TRUST_PROXY", configured: env.trustProxy !== undefined },
+      {
+        name: "TRUSTED_PROXY_HOPS",
+        configured: env.trustedProxyHops !== undefined,
+      },
       { name: "STORAGE_DRIVER", configured: Boolean(env.storageDriver) },
       { name: "S3_BUCKET", configured: Boolean(env.s3Bucket) },
       { name: "S3_REGION", configured: Boolean(env.s3Region) },
